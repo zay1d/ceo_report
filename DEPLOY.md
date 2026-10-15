@@ -6,6 +6,46 @@
 
 Работай по шагам. Каждый шаг проверяй. Если что-то не сходится, остановись и спроси человека, не обходи проблему.
 
+## Текущий продакшн: корпоративная ВМ `hostingtg`
+
+Страница уже развёрнута. Этот раздел — для обновлений и обслуживания. Новый сервер поднимают по шагам 0–6 ниже.
+
+- **Адрес:** https://tcm-events.tail226d37.ts.net/ceo
+- **Схема** такая же, как у остальных сервисов на этой ВМ (`bo`, `io`, `weekly-tasks`, `attendance`…):
+  - системный пользователь `svc-ceo`;
+  - код в `/opt/ceo-report` (`admintg:svc-ceo`, режим `1775`), venv в `/opt/ceo-report/venv`;
+  - unit `/etc/systemd/system/ceo-report.service` и изоляция в `ceo-report.service.d/10-isolation.conf`;
+  - приложение на `127.0.0.1:8012`;
+  - Funnel на 443 с путём `/ceo`, в `.env` задано `TCM_BASE_PATH=/ceo`.
+- **Не трогать:** чужие маршруты Funnel (`/`, `/bo`, `/io`, `/mall`, `/meet`, `/weekly`, `/attendance`, порты 8443 и 10000) и чужие сервисы. Ничего не сбрасывать через `tailscale serve reset`.
+- **Подключение:** `ssh -p 54323 admintg@<адрес ВМ>`. Адрес и SSH-ключ — у администратора.
+
+**Обновить код** (с машины разработчика, из корня репозитория):
+```bash
+git archive HEAD | ssh -p 54323 admintg@<адрес ВМ> 'tar -x -C /opt/ceo-report'
+ssh -p 54323 admintg@<адрес ВМ> 'cd /opt/ceo-report && venv/bin/pip install -q -r server/requirements.txt && sudo systemctl restart ceo-report && sleep 2 && curl -s 127.0.0.1:8012/healthz'
+```
+В архиве нет `.env` и `secrets/sa.json`, так что настройки и ключ при обновлении не затираются.
+
+**Логи:** `sudo journalctl -u ceo-report -f`.
+
+**Проверка доступа к таблице:**
+```bash
+sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set +a && ../venv/bin/python -m tcm.check'
+```
+
+**Пользователи:**
+1. Посчитать хэш пароля: `cd /opt/ceo-report/server && ../venv/bin/python -m tcm.auth 'пароль'`.
+2. Дописать `логин:хэш` через запятую в `TCM_USERS` в `/opt/ceo-report/.env` (`sudo -e`).
+3. Перезапустить: `sudo systemctl restart ceo-report`.
+
+**Заменить ключ сервисного аккаунта:**
+1. Положить новый файл в `/opt/ceo-report/secrets/sa.json`.
+2. Выполнить `sudo chown svc-ceo:svc-ceo` и `chmod 600` для этого файла.
+3. Перезапустить сервис: `sudo systemctl restart ceo-report`.
+
+**Снять публикацию** (только по просьбе владельца): `sudo tailscale funnel --set-path /ceo off`.
+
 ## 0. Правила
 
 - **Ключ сервисного аккаунта (`secrets/sa.json`) — секрет.**

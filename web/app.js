@@ -258,7 +258,7 @@ function drawChart(m,slot,lines,fnE){
   const additive=(m.type==='count'||m.k==='to');
   if(additive) lo=0; else { const pad=(hi-lo||Math.abs(hi)||1)*.15; lo=Math.max(0,lo-pad); hi+=pad; }
   if(hi===lo) hi=lo+1; else if(additive) hi*=1.08;
-  const W=360,H=220,Lp=54,Rp=10,T=12,Bt=28, X=i=>Lp+(K>1?i*(W-Lp-Rp)/(K-1):(W-Lp-Rp)/2), Y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-Bt);
+  const wide=matchMedia('(min-width:1024px)').matches, W=Math.max(360,Math.round(slot.clientWidth||360)), H=wide?320:220, Lp=54,Rp=10,T=12,Bt=28, X=i=>Lp+(K>1?i*(W-Lp-Rp)/(K-1):(W-Lp-Rp)/2), Y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-Bt);
   const path=arr=>{let d='',pen=false;arr.forEach((v,i)=>{if(v==null||!isFinite(v)){pen=false;return;}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true;});return d;};
   const marks=arr=>arr.map((v,i)=>v==null||!isFinite(v)?'':`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="1.8"/>`).join('');
   let grid='';
@@ -489,7 +489,7 @@ function bindEvents(){
     $(s).addEventListener('keydown',e=>{ if(e.key==='Enter'&&shown[t][0]){ e.preventDefault(); applySearch(shown[t][0],t); } });
   });
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeSheet(); closeTab(); toggleInfo(false); }});
-  window.addEventListener('resize',setHH);
+  let rT=0; window.addEventListener('resize',()=>{ setHH(); clearTimeout(rT); rT=setTimeout(()=>{ if(D&&cur.win) paintData(); },150); });
 }
 
 /* ---------- старт ---------- */
