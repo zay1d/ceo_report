@@ -1,0 +1,12 @@
+# секреты — никогда не коммитить
+*.json.key
+*service-account*.json
+health-cheak-*.json
+.env
+*.env
+!.env.example
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
