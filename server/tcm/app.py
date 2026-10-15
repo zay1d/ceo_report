@@ -10,6 +10,8 @@
   TCM_CACHE_MIN       как часто перечитывать таблицу, минут (по умолчанию 15)
   TCM_COOKIE_SECURE   1 — cookie только по HTTPS (по умолчанию), 0 — для локальной проверки
   TCM_WEB_DIR         папка со страницей (по умолчанию ../web)
+  TCM_BASE_PATH       префикс пути, если страница опубликована не в корне (например /ceo
+                      за tailscale serve --set-path /ceo: Tailscale срезает префикс)
 """
 from __future__ import annotations
 
@@ -79,7 +81,21 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
     throttle = Throttle()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(SessionMiddleware, secret_key=secret, session_cookie="tcm_session",
+    base = "/" + os.environ.get("TCM_BASE_PATH", "").strip("/")
+    base = "" if base == "/" else base
+
+    def to(path: str) -> RedirectResponse:
+        return RedirectResponse(f"{base}/{path}", status_code=303)
+
+    def with_base(html: str) -> str:
+        # <base> делает все относительные ссылки страницы (api/data, login, app.js) верными
+        # и для «/ceo», и для «/ceo/»
+        return html.replace("<head>", f'<head><base href="{base}/">', 1)
+
+    index_html = with_base((WEB / "index.html").read_text(encoding="utf-8"))
+    login_html = with_base(LOGIN_HTML)
+
+    app.add_middleware(SessionMiddleware, secret_key=secret, session_cookie="tcm_session", path=f"{base}/",
                        max_age=SESSION_DAYS * 86400, same_site="lax",
                        https_only=os.environ.get("TCM_COOKIE_SECURE", "1") != "0")
 
@@ -103,9 +119,9 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request, e: str = ""):
         if user(request):
-            return RedirectResponse("./", status_code=303)
+            return to("")
         msg = {"1": "Неверный логин или пароль.", "2": "Слишком много попыток. Подождите 15 минут."}.get(e, "")
-        return HTMLResponse(LOGIN_HTML.replace("{{msg}}", msg))
+        return HTMLResponse(login_html.replace("{{msg}}", msg))
 
     @app.post("/login")
     def login(request: Request, login: str = Form(""), password: str = Form("")):
@@ -116,20 +132,20 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
         key = login.strip().lower()
         tkey = f"{ip}|{key}"
         if throttle.blocked(tkey):
-            return RedirectResponse("login?e=2", status_code=303)
+            return to("login?e=2")
         stored = users.get(key)
         if stored and check_password(password, stored):
             throttle.reset(tkey)
             request.session.clear()
             request.session["user"] = key
-            return RedirectResponse("./", status_code=303)
+            return to("")
         throttle.fail(tkey)
-        return RedirectResponse("login?e=1", status_code=303)
+        return to("login?e=1")
 
     @app.get("/logout")
     def logout(request: Request):
         request.session.clear()
-        return RedirectResponse("login", status_code=303)
+        return to("login")
 
     @app.get("/api/data")
     def api_data(request: Request):
@@ -143,8 +159,8 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
     @app.get("/")
     def index(request: Request):
         if not user(request):
-            return RedirectResponse("login", status_code=303)
-        return FileResponse(WEB / "index.html", media_type="text/html")
+            return to("login")
+        return HTMLResponse(index_html)
 
     @app.get("/app.js")
     def app_js(request: Request):

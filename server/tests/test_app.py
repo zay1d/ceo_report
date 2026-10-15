@@ -21,16 +21,16 @@ def test_requires_login():
     c = client()
     assert c.get("/api/data").status_code == 401
     r = c.get("/", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "login"
+    assert r.status_code == 303 and r.headers["location"] == "/login"
     assert c.get("/app.js").status_code == 401
 
 
 def test_login_flow():
     c = client()
     r = c.post("/login", data={"login": "ceo", "password": "bad"}, follow_redirects=False)
-    assert r.headers["location"] == "login?e=1"
+    assert r.headers["location"] == "/login?e=1"
     r = c.post("/login", data={"login": "CEO", "password": "secret-1"}, follow_redirects=False)
-    assert r.headers["location"] == "./"
+    assert r.headers["location"] == "/"
     d = c.get("/api/data")
     assert d.status_code == 200 and d.json()["months"] == ["2026-09"] and d.json()["stale"] is False
     assert c.get("/").status_code == 200
@@ -43,10 +43,10 @@ def test_throttle():
     for _ in range(5):
         c.post("/login", data={"login": "ceo", "password": "bad"})
     r = c.post("/login", data={"login": "ceo", "password": "secret-1"}, follow_redirects=False)
-    assert r.headers["location"] == "login?e=2"
+    assert r.headers["location"] == "/login?e=2"
     # другие логины с того же адреса (например, все за одним туннелем) не блокируются
     r = c.post("/login", data={"login": "cfo", "password": "x"}, follow_redirects=False)
-    assert r.headers["location"] == "login?e=1"
+    assert r.headers["location"] == "/login?e=1"
 
 
 def test_stale_data_when_sheet_fails(monkeypatch):
@@ -73,3 +73,14 @@ def test_no_data_at_all():
     c = client(loader)
     c.post("/login", data={"login": "ceo", "password": "secret-1"})
     assert c.get("/api/data").status_code == 503
+
+
+def test_base_path(monkeypatch):
+    monkeypatch.setenv("TCM_BASE_PATH", "/ceo/")
+    c = client()
+    r = c.get("/", follow_redirects=False)
+    assert r.headers["location"] == "/ceo/login"
+    assert '<base href="/ceo/">' in c.get("/login").text
+    r = c.post("/login", data={"login": "ceo", "password": "secret-1"}, follow_redirects=False)
+    assert r.headers["location"] == "/ceo/"
+    assert "path=/ceo/" in r.headers["set-cookie"].lower().replace(" ", "")
