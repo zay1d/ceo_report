@@ -44,6 +44,9 @@ def test_throttle():
         c.post("/login", data={"login": "ceo", "password": "bad"})
     r = c.post("/login", data={"login": "ceo", "password": "secret-1"}, follow_redirects=False)
     assert r.headers["location"] == "login?e=2"
+    # другие логины с того же адреса (например, все за одним туннелем) не блокируются
+    r = c.post("/login", data={"login": "cfo", "password": "x"}, follow_redirects=False)
+    assert r.headers["location"] == "login?e=1"
 
 
 def test_stale_data_when_sheet_fails(monkeypatch):

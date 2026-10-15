@@ -109,19 +109,21 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
 
     @app.post("/login")
     def login(request: Request, login: str = Form(""), password: str = Form("")):
-        # Адрес клиента; за обратным прокси uvicorn подставляет его из X-Forwarded-For
-        # только для доверенных прокси (FORWARDED_ALLOW_IPS), поэтому заголовок не подделать.
+        # Попытки считаем по паре «адрес + логин». За туннелем (Tailscale) все запросы
+        # могут приходить с одного адреса — блокировка только по адресу закрыла бы вход всем.
+        # Адрес из X-Forwarded-For uvicorn подставляет лишь для доверенных прокси (FORWARDED_ALLOW_IPS).
         ip = request.client.host if request.client else "?"
-        if throttle.blocked(ip):
-            return RedirectResponse("login?e=2", status_code=303)
         key = login.strip().lower()
+        tkey = f"{ip}|{key}"
+        if throttle.blocked(tkey):
+            return RedirectResponse("login?e=2", status_code=303)
         stored = users.get(key)
         if stored and check_password(password, stored):
-            throttle.reset(ip)
+            throttle.reset(tkey)
             request.session.clear()
             request.session["user"] = key
             return RedirectResponse("./", status_code=303)
-        throttle.fail(ip)
+        throttle.fail(tkey)
         return RedirectResponse("login?e=1", status_code=303)
 
     @app.get("/logout")

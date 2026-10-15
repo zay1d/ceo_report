@@ -5,7 +5,7 @@
 - `server/tcm/model.py` — разбор вкладок таблицы → JSON для страницы (всё в $, помесячно)
 - `server/tcm/sheets.py` — чтение таблицы, `server/tcm/app.py` — сервер (FastAPI, вход по паролю)
 - `web/index.html`, `web/app.js` — страница
-- `deploy/` — docker-compose с Caddy (HTTPS), unit-файл systemd
+- `deploy/` — docker-compose (приложение на 127.0.0.1:8000; Caddy — профиль для своего домена), unit-файл systemd. Наружу страница выводится через Tailscale serve/funnel
 
 **Если тебя попросили задеплоить или обновить на сервере — следуй `DEPLOY.md` шаг за шагом.**
 

@@ -1,4 +1,7 @@
-# Запуск: cd deploy && docker compose up -d --build
+# Запуск (из папки deploy/):
+#   Tailscale (нет домена):  docker compose up -d --build
+#                            затем: sudo tailscale serve --bg 8000   (или funnel — см. DEPLOY.md)
+#   Свой домен + Caddy:      docker compose --profile caddy up -d --build
 # Нужны: ../.env (настройки) и ../secrets/sa.json (ключ сервисного аккаунта).
 services:
   app:
@@ -7,14 +10,15 @@ services:
     env_file: ../.env
     environment:
       TCM_SA_KEY_FILE: /secrets/sa.json
-      # порт приложения наружу не открыт, достучаться может только caddy из этой сети
+      # порт открыт только на 127.0.0.1 хоста: достучаться могут лишь tailscaled/caddy на этой машине
       FORWARDED_ALLOW_IPS: "*"
     volumes:
       - ../secrets/sa.json:/secrets/sa.json:ro
-    expose:
-      - "8000"
+    ports:
+      - "127.0.0.1:8000:8000"
 
   caddy:
+    profiles: [caddy]
     image: caddy:2
     restart: unless-stopped
     depends_on: [app]

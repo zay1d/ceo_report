@@ -69,6 +69,9 @@ class Throttle:
 
     def fail(self, key: str) -> None:
         self._trim(key).append(time.monotonic())
+        if len(self.fails) > 10000:  # перебор случайных логинов не должен раздувать память
+            for k in [k for k in self.fails if not self._trim(k)]:
+                del self.fails[k]
 
     def reset(self, key: str) -> None:
         self.fails.pop(key, None)
