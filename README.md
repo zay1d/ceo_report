@@ -67,6 +67,10 @@ server/tests/   тесты (на синтетических данных — р�
 
 ## Запуск на своём сервере
 
+Полная пошаговая инструкция (в том числе для Claude на сервере): **`DEPLOY.md`**. В `deploy/` лежат docker-compose с Caddy (HTTPS) и unit-файл systemd. Проверить доступ к таблице без запуска сервера можно командой `python -m tcm.check`.
+
+Коротко:
+
 ### 1. Доступ к таблице
 
 Откройте «Реестр 26» на чтение для `client_email` из JSON-ключа: «Настройки доступа» → добавить адрес → «Читатель».
@@ -106,7 +110,7 @@ docker run -d --name tcm --restart unless-stopped \
 cd server
 pip install -r requirements-dev.txt
 python -m pytest
-export TCM_SHEET_ID=... TCM_SA_KEY_FILE=/path/sa.json TCM_USERS='ceo:scrypt$...' \
+export TCM_SHEET_ID=... TCM_SA_KEY_FILE=/path/sa.json TCM_USERS='ceo:scrypt.…' \
        TCM_SECRET=$(python -c "import secrets;print(secrets.token_hex(32))") TCM_COOKIE_SECURE=0
 uvicorn --factory tcm.app:create_app --port 8000
 ```

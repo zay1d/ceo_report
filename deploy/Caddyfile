@@ -1,0 +1,7 @@
+# Caddy сам получает и продлевает HTTPS-сертификат Let's Encrypt для TCM_DOMAIN.
+# Домен должен указывать (A-запись) на IP этого сервера, порты 80 и 443 открыты.
+{$TCM_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy {$TCM_UPSTREAM:app:8000}
+}

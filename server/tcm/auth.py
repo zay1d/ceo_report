@@ -19,17 +19,21 @@ N, R, P = 2 ** 14, 8, 1
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     h = hashlib.scrypt(password.encode(), salt=salt, n=N, r=R, p=P, dklen=32)
-    return f"scrypt${salt.hex()}${h.hex()}"
+    # разделитель — точка: «$» в .env съели бы docker compose и systemd
+    return f"scrypt.{salt.hex()}.{h.hex()}"
 
 
 def check_password(password: str, stored: str) -> bool:
     try:
-        kind, salt, h = stored.split("$")
+        kind, salt, h = stored.replace("$", ".").split(".")
     except ValueError:
         return False
     if kind != "scrypt":
         return False
-    calc = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=N, r=R, p=P, dklen=32)
+    try:
+        calc = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=N, r=R, p=P, dklen=32)
+    except ValueError:  # испорченный хэш в TCM_USERS
+        return False
     return hmac.compare_digest(calc.hex(), h)
 
 

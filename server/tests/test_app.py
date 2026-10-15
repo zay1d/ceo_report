@@ -13,7 +13,7 @@ def client(loader=lambda: {"months": ["2026-09"], "brands": []}):
 
 def test_password_hash():
     h = hash_password("p@ss")
-    assert h.startswith("scrypt$") and check_password("p@ss", h) and not check_password("nope", h)
+    assert h.startswith("scrypt.") and "$" not in h and check_password("p@ss", h) and not check_password("nope", h)
     assert load_users(f"Ceo:{h}, cfo:{h}") == {"ceo": h, "cfo": h}
 
 
