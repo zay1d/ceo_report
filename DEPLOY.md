@@ -39,7 +39,7 @@ sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set
 
 **Пользователи:**
 1. Посчитать хэш пароля: `cd /opt/ceo-report/server && ../venv/bin/python -m tcm.auth 'пароль'`.
-2. Дописать `логин:хэш` через запятую в `TCM_USERS` в `/opt/ceo-report/.env` (`sudo -e`).
+2. Дописать `логин:хэш` через запятую в `TCM_USERS` в `/opt/ceo-report/.env`. Править файл от его владельца: `sudo -u svc-ceo nano /opt/ceo-report/.env`. От root запись не пройдёт («Permission denied»): у папки `/opt/ceo-report` sticky-бит, и ядро (`fs.protected_regular`) не даёт root открыть на запись чужой файл в такой папке.
 3. Перезапустить: `sudo systemctl restart ceo-report`.
 
 **Роли.** По умолчанию пользователь — «руководство»: видит и пишет оба комментария. Логины ответственных (менеджеров) перечислить в `TCM_MANAGERS` через запятую: они видят и пишут только «Комментарий ответственного».
