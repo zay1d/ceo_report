@@ -10,10 +10,12 @@ services:
     env_file: ../.env
     environment:
       TCM_SA_KEY_FILE: /secrets/sa.json
+      TCM_STATE_DIR: /state
       # порт открыт только на 127.0.0.1 хоста: достучаться могут лишь tailscaled/caddy на этой машине
       FORWARDED_ALLOW_IPS: "*"
     volumes:
       - ../secrets/sa.json:/secrets/sa.json:ro
+      - state:/state   # комментарии
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -33,5 +35,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  state:
   caddy_data:
   caddy_config:

@@ -16,6 +16,7 @@
   - код в `/opt/ceo-report` (`admintg:svc-ceo`, режим `1775`), venv в `/opt/ceo-report/venv`;
   - unit `/etc/systemd/system/ceo-report.service` и изоляция в `ceo-report.service.d/10-isolation.conf`;
   - приложение на `127.0.0.1:8012`;
+  - комментарии пишутся в `/opt/ceo-report/state/comments.json` (папка `svc-ceo`, `700`; запись разрешена в `ceo-report.service.d/20-state.conf` через `ReadWritePaths`, в `.env` — `TCM_STATE_DIR`);
   - Funnel на 443 с путём `/ceo`, в `.env` задано `TCM_BASE_PATH=/ceo`.
 - **Не трогать:** чужие маршруты Funnel (`/`, `/bo`, `/io`, `/mall`, `/meet`, `/weekly`, `/attendance`, порты 8443 и 10000) и чужие сервисы. Ничего не сбрасывать через `tailscale serve reset`.
 - **Подключение:** `ssh -p 54323 admintg@<адрес ВМ>`. Адрес и SSH-ключ — у администратора.
@@ -25,7 +26,9 @@
 git archive HEAD | ssh -p 54323 admintg@<адрес ВМ> 'tar -x -C /opt/ceo-report'
 ssh -p 54323 admintg@<адрес ВМ> 'cd /opt/ceo-report && venv/bin/pip install -q -r server/requirements.txt && sudo systemctl restart ceo-report && sleep 2 && curl -s 127.0.0.1:8012/healthz'
 ```
-В архиве нет `.env` и `secrets/sa.json`, так что настройки и ключ при обновлении не затираются.
+В архиве нет `.env`, `secrets/sa.json` и `state/`, так что настройки, ключ и комментарии при обновлении не затираются.
+
+После перезапуска сервер сразу перечитывает таблицу (около 15 секунд), поэтому первый вход не ждёт.
 
 **Логи:** `sudo journalctl -u ceo-report -f`.
 
@@ -38,6 +41,10 @@ sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set
 1. Посчитать хэш пароля: `cd /opt/ceo-report/server && ../venv/bin/python -m tcm.auth 'пароль'`.
 2. Дописать `логин:хэш` через запятую в `TCM_USERS` в `/opt/ceo-report/.env` (`sudo -e`).
 3. Перезапустить: `sudo systemctl restart ceo-report`.
+
+**Роли.** По умолчанию пользователь — «руководство»: видит и пишет оба комментария. Логины ответственных (менеджеров) перечислить в `TCM_MANAGERS` через запятую: они видят и пишут только «Комментарий ответственного».
+
+**Комментарии** — обычный JSON-файл `/opt/ceo-report/state/comments.json`. Резервная копия: `sudo cp -a /opt/ceo-report/state/comments.json ~/comments-$(date +%F).json`.
 
 **Заменить ключ сервисного аккаунта:**
 1. Положить новый файл в `/opt/ceo-report/secrets/sa.json`.
@@ -102,7 +109,10 @@ cd server && python3 -m tcm.auth 'пароль' && cd ..          # → хэш �
 ```
 Заполни в `.env`:
 - `TCM_SECRET`;
-- `TCM_USERS` — `логин:хэш` через запятую, логины строчными буквами.
+- `TCM_USERS` — `логин:хэш` через запятую, логины строчными буквами;
+- `TCM_MANAGERS` — логины ответственных (если есть), остальные будут «руководством».
+
+`TCM_STATE_DIR` (папка для комментариев) в Docker и в unit-файле systemd уже задана. Для 3Б создай её: `sudo mkdir -p /opt/tcm-analytics/state`.
 
 `TCM_DOMAIN` оставь пустым. `TCM_SHEET_ID` уже заполнен.
 

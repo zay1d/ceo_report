@@ -84,3 +84,45 @@ def test_base_path(monkeypatch):
     r = c.post("/login", data={"login": "ceo", "password": "secret-1"}, follow_redirects=False)
     assert r.headers["location"] == "/ceo/"
     assert "path=/ceo/" in r.headers["set-cookie"].lower().replace(" ", "")
+
+
+def login(c, who="ceo"):
+    r = c.post("/login", data={"login": who, "password": "secret-1"}, follow_redirects=False)
+    assert r.headers["location"] == "/"
+
+
+def test_comments(tmp_path):
+    users = {"ceo": hash_password("secret-1"), "mgr": hash_password("secret-1")}
+    app = create_app(loader=lambda: {"months": [], "brands": []}, users=users, secret=SECRET,
+                     state_dir=str(tmp_path), managers={"mgr"})
+    c = TestClient(app, base_url="https://testserver")
+    assert c.get("/api/comments?obj=ZARA").status_code == 401
+    login(c)
+    assert c.get("/api/comments?obj=ZARA").json() == {"role": "management", "items": {}}
+    assert c.post("/api/comments", data={"obj": "ZARA", "kind": "manager", "text": "x"}).status_code == 415
+    assert c.post("/api/comments", json={"obj": "ZARA", "kind": "other", "text": "x"}).status_code == 400
+    r = c.post("/api/comments", json={"obj": "ZARA", "kind": "management", "text": " Только для нас "})
+    assert r.status_code == 200 and r.json()["item"]["t"] == "Только для нас" and r.json()["item"]["by"] == "ceo"
+    c.post("/api/comments", json={"obj": "ZARA", "kind": "manager", "text": "План выполнен"})
+    assert set(c.get("/api/comments?obj=ZARA").json()["items"]) == {"manager", "management"}
+
+    m = TestClient(app, base_url="https://testserver")
+    login(m, "mgr")
+    j = m.get("/api/comments?obj=ZARA").json()
+    assert j["role"] == "manager" and list(j["items"]) == ["manager"]
+    assert m.post("/api/comments", json={"obj": "ZARA", "kind": "management", "text": "x"}).status_code == 403
+    # пустой текст удаляет комментарий
+    assert m.post("/api/comments", json={"obj": "ZARA", "kind": "manager", "text": ""}).json() == {"item": None}
+    assert list(c.get("/api/comments?obj=ZARA").json()["items"]) == ["management"]
+
+
+def test_comments_disabled_without_state_dir(monkeypatch):
+    monkeypatch.delenv("TCM_STATE_DIR", raising=False)
+    c = client()
+    login(c)
+    assert c.get("/api/comments?obj=x").status_code == 503
+
+
+def test_fonts_public():
+    r = client().get("/fonts.css")
+    assert r.status_code == 200 and "font-face" in r.text and "max-age" in r.headers["cache-control"]

@@ -12,6 +12,8 @@
   TCM_WEB_DIR         папка со страницей (по умолчанию ../web)
   TCM_BASE_PATH       префикс пути, если страница опубликована не в корне (например /ceo
                       за tailscale serve --set-path /ceo: Tailscale срезает префикс)
+  TCM_STATE_DIR       папка, куда сервер пишет комментарии (comments.json); без неё комментарии выключены
+  TCM_MANAGERS        логины с ролью «ответственный» через запятую: им не виден комментарий руководства
 """
 from __future__ import annotations
 
@@ -19,6 +21,7 @@ import logging
 import os
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable
 
@@ -27,6 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import Throttle, check_password, load_users
+from .comments import KINDS, MAX_OBJ, MAX_TEXT, CommentStore, load_managers
 
 log = logging.getLogger("tcm")
 
@@ -69,7 +73,8 @@ def default_loader() -> dict:
 
 
 def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] | None = None,
-               secret: str | None = None) -> FastAPI:
+               secret: str | None = None, state_dir: str | None = None,
+               managers: set[str] | None = None) -> FastAPI:
     logging.basicConfig(level=logging.INFO)
     users = users if users is not None else load_users()
     secret = secret or os.environ.get("TCM_SECRET")
@@ -79,8 +84,17 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
         log.warning("TCM_USERS пуст — войти будет невозможно")
     cache = DataCache(loader or default_loader, int(float(os.environ.get("TCM_CACHE_MIN", "15")) * 60))
     throttle = Throttle()
+    comments = CommentStore(state_dir if state_dir is not None else os.environ.get("TCM_STATE_DIR") or None)
+    managers = managers if managers is not None else load_managers()
 
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(_app):
+        # читаем таблицу сразу после запуска, чтобы первый вход не ждал ~15 секунд
+        if os.environ.get("TCM_WARMUP", "1") != "0":
+            threading.Thread(target=cache.get, daemon=True).start()
+        yield
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     base = "/" + os.environ.get("TCM_BASE_PATH", "").strip("/")
     base = "" if base == "/" else base
 
@@ -156,6 +170,47 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
             return JSONResponse({"error": "Таблица недоступна"}, status_code=503)
         return JSONResponse(data)
 
+    def role(u: str) -> str:
+        return "manager" if u in managers else "management"
+
+    @app.get("/api/comments")
+    def get_comments(request: Request, obj: str = ""):
+        u = user(request)
+        if not u:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if not comments.enabled:
+            return JSONResponse({"error": "хранилище комментариев не настроено"}, status_code=503)
+        r = role(u)
+        items = {k: v for k, v in comments.get(obj[:MAX_OBJ]).items() if r == "management" or k == "manager"}
+        return {"role": r, "items": items}
+
+    @app.post("/api/comments")
+    async def post_comment(request: Request):
+        u = user(request)
+        if not u:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if not comments.enabled:
+            return JSONResponse({"error": "хранилище комментариев не настроено"}, status_code=503)
+        # только JSON: обычная форма с чужого сайта так не отправится
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            return JSONResponse({"error": "нужен JSON"}, status_code=415)
+        try:
+            body = await request.json()
+            obj, kind, text = str(body["obj"]), str(body["kind"]), str(body.get("text", ""))
+        except Exception:
+            return JSONResponse({"error": "неверный запрос"}, status_code=400)
+        if kind not in KINDS or not obj or len(obj) > MAX_OBJ or len(text) > MAX_TEXT:
+            return JSONResponse({"error": "неверный запрос"}, status_code=400)
+        if kind == "management" and role(u) != "management":
+            return JSONResponse({"error": "только для руководства"}, status_code=403)
+        return {"item": comments.put(obj, kind, text, u)}
+
+    @app.get("/fonts.css")
+    def fonts():
+        # шрифты не секрет: нужны и странице входа; кэшируются браузером на сутки
+        return FileResponse(WEB / "fonts.css", media_type="text/css",
+                            headers={"Cache-Control": "public, max-age=86400"})
+
     @app.get("/")
     def index(request: Request):
         if not user(request):
@@ -175,7 +230,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tashkent City Mall — вход</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fonts.css">
 <style>
 :root{--bg:#FFFFFF;--bg2:#F6F3F2;--ink:#22292F;--ink2:#5E676E;--line2:#B7B7B7;--terra:#B4806D;--down:#B03F33}
 @media (prefers-color-scheme: dark){:root{--bg:#12181D;--bg2:#1A2229;--ink:#EEEAE8;--ink2:#A5ADB3;--line2:#4A555E;--down:#F28F82}}

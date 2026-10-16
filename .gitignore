@@ -13,3 +13,4 @@ __pycache__/
 secrets/*
 !secrets/README.md
 dist/
+state/

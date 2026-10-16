@@ -5,7 +5,7 @@ RUN pip install --no-cache-dir -r server/requirements.txt
 COPY server/ server/
 COPY web/ web/
 WORKDIR /app/server
-RUN useradd -r -u 10001 tcm
+RUN useradd -r -u 10001 tcm && mkdir /state && chown tcm /state   # комментарии (том)
 USER tcm
 # IP обратного прокси (nginx и т.п.), которому доверяем X-Forwarded-For
 ENV FORWARDED_ALLOW_IPS=127.0.0.1

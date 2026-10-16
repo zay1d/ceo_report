@@ -11,11 +11,13 @@ WorkingDirectory=/opt/tcm-analytics/server
 EnvironmentFile=/opt/tcm-analytics/.env
 Environment=TCM_SA_KEY_FILE=/opt/tcm-analytics/secrets/sa.json
 Environment=FORWARDED_ALLOW_IPS=127.0.0.1
+Environment=TCM_STATE_DIR=/opt/tcm-analytics/state
 ExecStart=/opt/tcm-analytics/venv/bin/uvicorn --factory tcm.app:create_app --host 127.0.0.1 --port 8000 --proxy-headers
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
+ReadWritePaths=/opt/tcm-analytics/state
 ProtectHome=true
 PrivateTmp=true
 
