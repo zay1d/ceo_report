@@ -114,7 +114,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .psel small{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink2)}
 .psel .sw2{display:inline-block;width:18px;border-top:3px solid var(--terra)}
 .psel .sw2.c{border-top:2px dashed var(--ink2)}
-.psel select{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;border:0;background:transparent}
+.psel{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.psel select{display:none}
+.psel[aria-expanded="true"]{border-bottom-color:var(--terra)}
+.psel[aria-expanded="true"] svg{transform:rotate(180deg)}
+.pmenu{position:absolute;right:16px;z-index:7;width:min(calc(100% - 32px),340px);max-height:min(62vh,440px);overflow-y:auto;overscroll-behavior:contain;
+  background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:6px;box-shadow:0 24px 50px -12px rgba(0,0,0,.45);
+  transform-origin:top right;transform:scale(.96) translateY(-4px);opacity:0;transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .15s}
+.pmenu.open{transform:none;opacity:1}
+.pmo{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;border-radius:14px;padding:10px 12px;cursor:pointer;font:inherit}
+.pmo b{display:block;font:600 13.5px/1.25 var(--f-b)}
+.pmo small{display:block;font-size:11.5px;color:var(--ink2);margin-top:2px}
+.pmo:hover,.pmo:focus-visible{background:var(--bg2);outline:0}
+.pmo.on{background:var(--ink);color:var(--bg)}
+.pmo.on small{color:inherit;opacity:.75}
+.cm-ro{border:1px solid var(--line);border-radius:14px;background:var(--bg2);padding:10px 12px;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.cm-ro.empty{color:var(--ink2);font-size:13px}
+@media (prefers-reduced-motion:reduce){.pmenu{transition:none}}
 .pv{display:block;padding:3px 20px 4px 0;min-height:44px}
 .pv b{display:block;font:600 13.5px/1.2 var(--f-b)}
 .pv em{display:block;font-style:normal;font-size:11.5px;line-height:1.25;color:var(--ink2);margin-top:1px}
@@ -372,10 +388,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
         <div class="cmp2" id="cmp2" hidden><button class="cmpbtn s" id="btnAdd"><b>Добавить</b></button><button class="cmpbtn s" id="btnClear"><b>Очистить</b></button></div>
       </div>
       <div class="pcol">
-        <label class="psel"><small>Период</small><span class="pv"><b id="pvPer"></b><em id="pvPerS"></em></span><select id="selPer" aria-label="Период"></select><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></label>
-        <label class="psel"><small>Сравнение</small><span class="pv"><b id="pvCmp"></b><em id="pvCmpS"></em></span><select id="selCmp" aria-label="Период сравнения"></select><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></label>
+        <div class="psel" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Период"><small>Период</small><span class="pv"><b id="pvPer"></b><em id="pvPerS"></em></span><select id="selPer" tabindex="-1" aria-hidden="true"></select><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></div>
+        <div class="psel" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Период сравнения"><small>Сравнение</small><span class="pv"><b id="pvCmp"></b><em id="pvCmpS"></em></span><select id="selCmp" tabindex="-1" aria-hidden="true"></select><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></div>
       </div>
       <div class="info-pop" id="infoPop" role="dialog" aria-label="Информация"></div>
+      <div class="pmenu" id="pmenu" role="listbox" aria-label="Выбор периода" hidden></div>
     </div>
     <div class="cmpwrap2" id="cmpwrap2" hidden><div class="cmpchips" id="cmpchips"></div></div>
     <div class="datesrow" id="datesRow" hidden>

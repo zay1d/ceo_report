@@ -109,7 +109,7 @@ def test_comments(tmp_path):
     m = TestClient(app, base_url="https://testserver")
     login(m, "mgr")
     j = m.get("/api/comments?obj=ZARA").json()
-    assert j["role"] == "manager" and list(j["items"]) == ["manager"]
+    assert j["role"] == "manager" and set(j["items"]) == {"manager", "management"}  # видит, но не пишет
     assert m.post("/api/comments", json={"obj": "ZARA", "kind": "management", "text": "x"}).status_code == 403
     # пустой текст удаляет комментарий
     assert m.post("/api/comments", json={"obj": "ZARA", "kind": "manager", "text": ""}).json() == {"item": None}

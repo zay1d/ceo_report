@@ -399,7 +399,7 @@ function drawChart(m,slot,lines,fnE,legend){
 }
 function paintPeriodUI(){
   const per=periodRange(state.period);
-  const setSel=(sel,html,val)=>{ const el=$(sel); if(el.innerHTML!==html) el.innerHTML=html; el.value=val; };
+  const setSel=(sel,html,val)=>{ const el=$(sel); if(el.innerHTML!==html) el.innerHTML=html; el.value=val; if(PM.sel===el) paintPmenu(); };
   setSel('#selPer',PERIODS.map(([k,l])=>{ let tx=l; if(k!=='custom'){ const r=periodRange({...state.period,key:k}); tx+=' ('+humanRange(r[0],r[1])+')'; } return `<option value="${k}">${esc(tx)}</option>`; }).join(''),state.period.key);
   setSel('#selCmp',COMPARES.map(([k,l])=>{ let tx=l; if(k!=='none'&&k!=='custom'){ const r=compareRange({...state.cmp,key:k},per); tx+=' ('+humanRange(r[0],r[1])+')'; } return `<option value="${k}">${esc(tx)}</option>`; }).join(''),state.cmp.key);
   $('#pvPer').textContent=PLAB[state.period.key]; $('#pvPerS').textContent='('+humanRange(per[0],per[1])+')';
@@ -461,6 +461,33 @@ const MINFO={
   tr:{w:'Сколько людей проходит по зонам выборки.',h:'Вход посетителей по счётчикам MallSense (127 датчиков Xovis): для всего ТРЦ — вход в ТРЦ, для зон — вход в зоны выборки. Если MallSense недоступен — вкладка «Заполняемость Mall» и оценка по замеру зоны из реестра.',u:'Человек.'},
   conv:{w:'Сколько чеков приходится на проход по зоне.',h:'Чеки ÷ трафик зон, по месяцам, где есть трафик. Это не доля посетителей, зашедших в магазин.',u:'Проценты.'}
 };
+/* ---------- меню периода: своё вместо системного списка (тот рисуется браузером и не следует теме) ---------- */
+const PM={sel:null,btn:null};
+function paintPmenu(){
+  const el=PM.sel, m=$('#pmenu'); if(!el) return;
+  m.innerHTML=[...el.options].map(o=>{
+    const i=o.text.indexOf(' ('), t=i>0?o.text.slice(0,i):o.text, s=i>0?o.text.slice(i+2,-1):'';
+    return `<button type="button" role="option" class="pmo${o.value===el.value?' on':''}" aria-selected="${o.value===el.value}" data-pmv="${esc(o.value)}"><b>${esc(t)}</b>${s?`<small>${esc(s)}</small>`:''}</button>`;
+  }).join('');
+}
+function openPmenu(btn){
+  const sel=btn.querySelector('select'), m=$('#pmenu');
+  if(PM.sel===sel){ closePmenu(); return; }
+  PM.sel=sel; PM.btn=btn; paintPmenu();
+  m.style.top=(btn.offsetTop+btn.offsetHeight+4)+'px';
+  m.hidden=false; btn.setAttribute('aria-expanded','true');
+  requestAnimationFrame(()=>{ m.classList.add('open'); const on=m.querySelector('.pmo.on')||m.querySelector('.pmo'); on&&on.focus({preventScroll:true}); });
+}
+function closePmenu(focus){
+  const m=$('#pmenu'); if(!PM.sel) return;
+  m.classList.remove('open'); m.hidden=true; PM.btn.setAttribute('aria-expanded','false');
+  if(focus) PM.btn.focus({preventScroll:true});
+  PM.sel=null; PM.btn=null;
+}
+function pickPmenu(v){
+  const el=PM.sel; closePmenu(true); if(!el||el.value===v) return;
+  el.value=v; el.dispatchEvent(new Event('change',{bubbles:true}));
+}
 function toggleMi(k,btn){
   const box=$('#mpop'); if(!box) return;
   if(!box.hidden&&box.dataset.k===k){ closeMi(); return; }
@@ -506,15 +533,18 @@ function paintComments(){
   const mg=[...new Set(cur.setA.map(b=>b.mgr).filter(Boolean))];
   const mgTxt=mg.length===1?mg[0]:mg.length>1?mg.length+' ответственных':'не указан';
   const lockSvg='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
-  const card=(kind,title,sub,lock)=>{
-    const key=cmKey(kind), saved=items&&items[kind], val=drafts[key]!=null?drafts[key]:(saved?saved.t:'');
+  const card=(kind,title,sub,lock,ro)=>{
+    const key=cmKey(kind), saved=items&&items[kind], val=ro?(saved?saved.t:''):drafts[key]!=null?drafts[key]:(saved?saved.t:'');
     const when=!items?(CM.err?'Не удалось загрузить: '+CM.err:'Загружаю…'):saved?'Сохранено '+new Date(saved.at*1000).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+(saved.by?' · '+saved.by:''):'Пока без комментария';
-    return `<div class="cm"><div class="cm-h"><b>${esc(title)}</b>${lock?`<span class="lock">${lockSvg}только руководство</span>`:''}</div><p class="cm-s">${sub}</p><textarea class="cm-t" data-cm="${kind}" rows="3" maxlength="4000" placeholder="Напишите комментарий…" aria-label="${esc(title)}"${items?'':' disabled'}>${esc(val)}</textarea><div class="cm-f"><span class="cm-st" id="cmst-${kind}">${esc(when)}</span><button class="btn" data-cmsave="${kind}"${items?'':' disabled'}>Сохранить</button></div></div>`;
+    const head=`<div class="cm"><div class="cm-h"><b>${esc(title)}</b>${lock?`<span class="lock">${lockSvg}пишет руководство</span>`:''}</div><p class="cm-s">${sub}</p>`;
+    if(ro) return head+`<div class="cm-ro${saved?'':' empty'}">${saved?esc(saved.t):'Руководство пока не оставило комментарий.'}</div><div class="cm-f"><span class="cm-st">${esc(saved?when:(!items?when:''))}</span></div></div>`;
+    return head+`<textarea class="cm-t" data-cm="${kind}" rows="3" maxlength="4000" placeholder="Напишите комментарий…" aria-label="${esc(title)}"${items?'':' disabled'}>${esc(val)}</textarea><div class="cm-f"><span class="cm-st" id="cmst-${kind}">${esc(when)}</span><button class="btn" data-cmsave="${kind}"${items?'':' disabled'}>Сохранить</button></div></div>`;
   };
+  const ro=CM.role!=='management';
   slot.innerHTML=`<h3 class="cm-title">Комментарии</h3>`+
-    card('manager','Комментарий ответственного','Ответственный: '+esc(mgTxt)+' · объект: '+esc(obj),false)+
-    (CM.role==='management'?card('management','Комментарий руководства','Виден только руководству',true):'')+
-    `<p class="hint">Комментарии привязаны к объекту (бренд, категория, зона…) и хранятся на сервере: их видят все, кто входит на страницу. Комментарий руководства видят только пользователи с ролью «руководство».</p>`;
+    card('manager','Комментарий ответственного','Ответственный: '+esc(mgTxt)+' · объект: '+esc(obj),false,false)+
+    card('management','Комментарий руководства',ro?'Только для чтения':'Пишет только руководство, видят все',true,ro)+
+    `<p class="hint">Комментарии привязаны к объекту (бренд, категория, зона…) и хранятся на сервере: их видят все, кто входит на страницу. Комментарий руководства пишут только пользователи с ролью «руководство».</p>`;
 }
 async function saveCm(kind){
   const ta=document.querySelector(`[data-cm="${kind}"]`); if(!ta) return;
@@ -666,6 +696,9 @@ function setHH(){ document.documentElement.style.setProperty('--hh',$('#top').of
 /* ---------- события ---------- */
 function bindEvents(){
   document.addEventListener('click',e=>{
+    const po=e.target.closest('[data-pmv]'); if(po){ pickPmenu(po.dataset.pmv); return; }
+    const pb=e.target.closest('.psel'); if(pb){ openPmenu(pb); return; }
+    if(PM.sel&&!e.target.closest('#pmenu')) closePmenu();
     if(!e.target.closest('#top')) closeTab();
     if(!e.target.closest('#infoPop')&&!e.target.closest('#btnInfo')) toggleInfo(false);
     if(!e.target.closest('#mpop')&&!e.target.closest('.mi')) closeMi();
@@ -726,7 +759,13 @@ function bindEvents(){
     $(s).addEventListener('keydown',e=>{ if(e.key==='Enter'&&shown[t][0]){ e.preventDefault(); applySearch(shown[t][0],t); } });
   });
   document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){ closeSheet(); closeTab(); toggleInfo(false); closeMi(); }
+    if(e.key==='Escape'){ closePmenu(true); closeSheet(); closeTab(); toggleInfo(false); closeMi(); }
+    const pb=e.target.closest&&e.target.closest('.psel');
+    if(pb&&e.target===pb&&(e.key==='Enter'||e.key===' '||e.key==='ArrowDown')){ e.preventDefault(); openPmenu(pb); }
+    if(PM.sel&&(e.key==='ArrowDown'||e.key==='ArrowUp')&&e.target.classList.contains('pmo')){
+      e.preventDefault(); const o=[...document.querySelectorAll('.pmo')], i=o.indexOf(e.target);
+      const n=o[(i+(e.key==='ArrowDown'?1:-1)+o.length)%o.length]; n&&n.focus();
+    }
     if((e.key==='Enter'||e.key===' ')&&D&&e.target.dataset&&e.target.dataset.pickb){ e.preventDefault(); pickBrand(e.target.dataset.pickb); }
   });
   let rT=0; window.addEventListener('resize',()=>{ setHH(); clearTimeout(rT); rT=setTimeout(()=>{ if(D&&cur.win) paintData(); },150); });

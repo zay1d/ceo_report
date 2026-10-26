@@ -13,7 +13,7 @@
   TCM_BASE_PATH       префикс пути, если страница опубликована не в корне (например /ceo
                       за tailscale serve --set-path /ceo: Tailscale срезает префикс)
   TCM_STATE_DIR       папка, куда сервер пишет комментарии (comments.json); без неё комментарии выключены
-  TCM_MANAGERS        логины с ролью «ответственный» через запятую: им не виден комментарий руководства
+  TCM_MANAGERS        логины с ролью «ответственный» через запятую: комментарий руководства видят, но не пишут
   MALLSENSE_XTOKEN,   ключи MallSense: трафик ТРЦ и зон по счётчикам (без них — из вкладки
   MALLSENSE_APP_KEY   «Заполняемость Mall»), см. mallsense.py
 """
@@ -183,9 +183,8 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         if not comments.enabled:
             return JSONResponse({"error": "хранилище комментариев не настроено"}, status_code=503)
-        r = role(u)
-        items = {k: v for k, v in comments.get(obj[:MAX_OBJ]).items() if r == "management" or k == "manager"}
-        return {"role": r, "items": items}
+        # оба комментария видят все; писать комментарий руководства может только «руководство» (см. POST)
+        return {"role": role(u), "items": comments.get(obj[:MAX_OBJ])}
 
     @app.post("/api/comments")
     async def post_comment(request: Request):
