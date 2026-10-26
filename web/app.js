@@ -16,7 +16,7 @@ const MN=['янв','фев','мар','апр','май','июн','июл','авг
 const MFULL=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
 
 /* ---------- данные ---------- */
-let D=null, B=[], ZONES=[], M0=[0,0], N=0, L=0, MALL_TR_MEAN=0, ZW_ALL=0;
+let D=null, B=[], ZONES=[], M0=[0,0], N=0, L=0, MALL_TR_MEAN=0, ZW_ALL=0, ZT={}, MS_ON=false;
 const SEG_ORDER=['Luxury','Bridge Luxury','Premium','Contemporary','Upper Mass','Mass','Mass Market'];
 
 /* месяцы: индекс i ↔ «YYYY-MM» (индекс может выходить за пределы данных) */
@@ -48,6 +48,12 @@ function prepare(data){
   ZW_ALL=ZONES.reduce((s,z)=>s+D.zones[z],0);
   const tr=D.mallTraffic.filter(v=>v);
   MALL_TR_MEAN=tr.length?tr.reduce((s,v)=>s+v,0)/tr.length:0;
+  ZT=D.zoneTraffic||{}; MS_ON=D.trafficSource==='mallsense';
+}
+/* трафик зоны за месяц: счётчики MallSense, а где их нет — оценка (вес зоны × сезонность ТРЦ) */
+function zoneTr(z,i,mt){
+  const v=ZT[z]&&ZT[z][i]; if(v!=null) return v;
+  return mt&&MALL_TR_MEAN&&D.zones[z]?D.zones[z]*mt/MALL_TR_MEAN:0;
 }
 
 /* ============================================================
@@ -64,11 +70,9 @@ function monthAgg(set,i,isMall){
     const k=b.cost[i]; if(k!=null){o.toK+=t;o.cost+=k;}
   }
   const mt=D.mallTraffic[i];
-  if(mt){
-    if(isMall) o.tr=mt;
-    else { const zs=new Set(set.flatMap(b=>b.zones)); let w=0; zs.forEach(z=>w+=D.zones[z]||0); o.tr=w?w*mt/MALL_TR_MEAN:null; }
-    if(o.tr) o.chT=o.ch;
-  }
+  if(isMall) o.tr=mt||null;
+  else { const zs=new Set(set.flatMap(b=>b.zones)); let w=0; zs.forEach(z=>w+=zoneTr(z,i,mt)); o.tr=w||null; }
+  if(o.tr) o.chT=o.ch;
   return o;
 }
 function series(set,a,b,isMall){
@@ -101,7 +105,7 @@ const METRICS=[
     hint:'Доля ТО объекта в ТО ТРЦ ÷ доля его площади в площади ТРЦ (по работающим брендам). 1,00 — отдача соответствует площади; выше — площадь работает лучше, чем в среднем по ТРЦ.'},
   {k:'rT',  name:'Отдача на трафик', type:'ratio',
     fn:c=>(c.to>0&&c.zw>0&&c.mto>0&&c.mzw>0)?(c.to/c.mto)/(c.zw/c.mzw):null,
-    hint:'Доля ТО объекта в ТО ТРЦ ÷ доля трафика его зон в трафике всех зон (замер из реестра). Выше 1,00 — объект даёт больше ТО, чем «весит» по трафику.'},
+    hint:'Доля ТО объекта в ТО ТРЦ ÷ доля трафика его зон в трафике всех зон. Выше 1,00 — объект даёт больше ТО, чем «весит» по трафику.'},
   {k:'ocr', name:'OCR',          type:'pct',   inverse:true, fn:c=>c.toK>0?c.cost/c.toK:null,
     hint:'OCR = (аренда + превышение ТО + OPEX и маркетинг) ÷ ТО, всё без НДС, по брендам с ТО за месяц.'},
   {k:'ch',  name:'Чеки',         type:'count', cur:'чеков', fn:c=>c.ch>0?c.ch:null, avg:c=>c.nb>0&&c.ch>0?c.ch/c.nb:null, avgLabel:'на бренд'},
@@ -296,14 +300,15 @@ function paintData(){
   const notes=[];
   if(m.hint) notes.push(m.hint);
   if(m.traffic){
-    notes.push(cur.isMallA&&!hasO?'Трафик ТРЦ — по счётчикам (вкладка «Заполняемость Mall»).':'Трафик зон — оценка: замер зоны из реестра × сезонность трафика ТРЦ по месяцам.');
+    if(MS_ON) notes.push(cur.isMallA&&!hasO?'Трафик ТРЦ — вход посетителей по счётчикам MallSense.':'Трафик зон — вход в зоны по счётчикам MallSense. Посетитель, прошедший несколько зон, учтён в каждой.');
+    else notes.push((D.trafficError?'MallSense сейчас недоступен. ':'')+(cur.isMallA&&!hasO?'Трафик ТРЦ — по счётчикам (вкладка «Заполняемость Mall»).':'Трафик зон — оценка: замер зоны из реестра × сезонность трафика ТРЦ по месяцам.'));
     const P=cur.P, miss=[]; for(let i=P[0];i<=P[1];i++) if(i>=0&&i<N&&!D.mallTraffic[i]) miss.push(mShort(i));
     if(miss.length) notes.push(`Нет данных о трафике за: ${miss.join(', ')} — эти месяцы не учтены.`);
   }
   if(avgOn) notes.push(`Чтобы объекты разного размера были сопоставимы, показано среднее ${m.avgLabel}.`);
   if(hasC&&(cur.C[0]<0||cur.C[1]>L)) notes.push(`Данные есть с ${mLab(0)} по ${mLab(L)}: месяцы сравнения вне этого диапазона пустые.`);
   if(hasC&&(cur.P[1]-cur.P[0])!==(cur.C[1]-cur.C[0])) notes.push(`Длина периодов разная: ${cur.P[1]-cur.P[0]+1} и ${cur.C[1]-cur.C[0]+1} мес., суммы сравнивайте с оговоркой.`);
-  vals.innerHTML=h+notes.map(n=>`<p class="hint">${esc(n)}</p>`).join('');
+  vals.innerHTML=(m.traffic&&cur.isMallA&&!hasO?liveBlock():'')+h+notes.map(n=>`<p class="hint">${esc(n)}</p>`).join('');
   const lines=[], legend=[], sh=hasC?cur.C[0]-cur.P[0]:0;
   R.forEach(r=>{ if(hasC) lines.push({s:r.o.WC,o:r.o,mall:cur.mall.WC,color:r.colC,kind:'C',label:(hasO?r.name+', ':'')+'сравнение',start:cur.win[0]+sh}); });
   R.forEach(r=>lines.push({s:r.o.WP,o:r.o,mall:cur.mall.WP,color:r.colP,kind:'P',label:(hasO?r.name+', ':'')+'период',start:cur.win[0]}));
@@ -312,6 +317,19 @@ function paintData(){
     if(hasC) legend.push({color:r.colC,label:hasO?r.name+' — сравнение':'Сравнение · '+fmtRange(cur.C[0],cur.C[1])});
   });
   drawChart(m,slot,lines,fnE,legend);
+}
+/* вход в ТРЦ прямо сейчас (MallSense): сегодня, вчера, месяц по вчера к тем же дням год назад */
+function liveBlock(){
+  const v=D.live; if(!MS_ON||!v) return '';
+  const n=x=>x==null?'—':nf(Math.round(x),0), dd=s=>{const [y,m,d]=s.split('-').map(Number); return d+' '+MS[m-1];};
+  const [y,mo]=v.month.split('-').map(Number), d=dnum(MBY.tr,v.mtd,v.mtdLy);
+  const rel=d&&d.rel!=null?`<span class="td ${d.cls}"><em>${d.dir>0?'▲':d.dir<0?'▼':'•'}</em>${(d.rel>0?'+':'')+nf(d.rel*100,1)} %</span> к ${y-1}`:'';
+  const it=(k,val,sub)=>`<div class="lv"><span>${k}</span><b>${val}</b><small>${sub}</small></div>`;
+  return `<div class="live"><div class="lvh">Посещаемость ТРЦ · MallSense</div><div class="lvg">`+
+    it('Сегодня',n(v.today),v.todayTo?'к '+v.todayTo:'данных пока нет')+
+    it('Вчера',n(v.yesterday),dd(v.yesterdayDate))+
+    it(MFULL[mo-1][0].toUpperCase()+MFULL[mo-1].slice(1),n(v.mtd),`1–${v.mtdDays} ${MS[mo-1]} `+rel)+
+    `</div></div>`;
 }
 function drawChart(m,slot,lines,fnE,legend){
   const K=cur.win[1]-cur.win[0]+1;
@@ -436,11 +454,11 @@ const MINFO={
   to:{w:'Сколько продано в деньгах.',h:'Сумма ТО всех брендов выборки за выбранный период (вкладка «Тurnover»), в долларах по курсу ЦБ на конец каждого месяца.',u:'Доллары США ($), без НДС.'},
   tom2:{w:'Сколько товарооборота приходится на 1 м² площади.',h:'ТО ÷ площадь выборки (зал + терраса). Площадь берётся средняя за период по брендам, у которых есть ТО.',u:'$ / м².'},
   rA:{w:'Лучше или хуже, чем в среднем по ТРЦ, площадь выборки приносит товарооборот.',h:'Доля ТО выборки в ТО всего ТРЦ ÷ доля площади выборки в площади ТРЦ. 1,00 — как в среднем по ТРЦ; выше — лучше.',u:'Коэффициент, без валюты.'},
-  rT:{w:'Сколько товарооборота выборка даёт относительно доли трафика своих зон.',h:'Доля ТО выборки в ТО ТРЦ ÷ доля замера трафика её зон в сумме замеров всех зон (из реестра). Выше 1,00 — выборка даёт больше ТО, чем «весит» по трафику. Формула требует подтверждения.',u:'Коэффициент, без валюты.'},
+  rT:{w:'Сколько товарооборота выборка даёт относительно доли трафика своих зон.',h:'Доля ТО выборки в ТО ТРЦ ÷ доля трафика её зон в трафике всех зон (средний месячный вход по счётчикам MallSense; без MallSense — замер из реестра). Выше 1,00 — выборка даёт больше ТО, чем «весит» по трафику. Формула требует подтверждения.',u:'Коэффициент, без валюты.'},
   ocr:{w:'Какую долю товарооборота бренд отдаёт молу.',h:'Итого молла ÷ ТО. Итого молла = аренда без НДС + превышение ТО + OPEX и маркетинг (вкладки брендов). Чем ниже, тем лучше.',u:'Проценты.'},
   ch:{w:'Сколько покупок совершено.',h:'Число чеков за период (вкладка «Тurnover»).',u:'Штуки.'},
   chk:{w:'Средняя сумма одной покупки.',h:'ТО ÷ число чеков за период, только по брендам, сдавшим чеки (не среднее из средних).',u:'Доллары США ($).'},
-  tr:{w:'Сколько людей проходит по зонам выборки.',h:'Для всего ТРЦ — счётчики («Заполняемость Mall»). Для зон — оценка: замер зоны из реестра × сезонность трафика ТРЦ.',u:'Человек.'},
+  tr:{w:'Сколько людей проходит по зонам выборки.',h:'Вход посетителей по счётчикам MallSense (127 датчиков Xovis): для всего ТРЦ — вход в ТРЦ, для зон — вход в зоны выборки. Если MallSense недоступен — вкладка «Заполняемость Mall» и оценка по замеру зоны из реестра.',u:'Человек.'},
   conv:{w:'Сколько чеков приходится на проход по зоне.',h:'Чеки ÷ трафик зон, по месяцам, где есть трафик. Это не доля посетителей, зашедших в магазин.',u:'Проценты.'}
 };
 function toggleMi(k,btn){

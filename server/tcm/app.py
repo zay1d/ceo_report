@@ -14,6 +14,8 @@
                       за tailscale serve --set-path /ceo: Tailscale срезает префикс)
   TCM_STATE_DIR       папка, куда сервер пишет комментарии (comments.json); без неё комментарии выключены
   TCM_MANAGERS        логины с ролью «ответственный» через запятую: им не виден комментарий руководства
+  MALLSENSE_XTOKEN,   ключи MallSense: трафик ТРЦ и зон по счётчикам (без них — из вкладки
+  MALLSENSE_APP_KEY   «Заполняемость Mall»), см. mallsense.py
 """
 from __future__ import annotations
 
@@ -68,8 +70,9 @@ class DataCache:
 
 
 def default_loader() -> dict:
+    from .mallsense import enrich_safe
     from .sheets import SheetReader
-    return SheetReader().load()
+    return enrich_safe(SheetReader().load())
 
 
 def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] | None = None,
@@ -248,7 +251,7 @@ button{margin-top:22px;width:100%;height:50px;border:0;border-radius:14px;backgr
 </style></head><body>
 <form method="post" action="login">
   <h1>Tashkent City Mall</h1>
-  <p>Аналитика для руководства</p>
+  <p>Аналитика ТРЦ</p>
   <label for="l">Логин</label><input id="l" name="login" autocomplete="username" autocapitalize="off" required>
   <label for="p">Пароль</label><input id="p" name="password" type="password" autocomplete="current-password" required>
   <div class="err">{{msg}}</div>

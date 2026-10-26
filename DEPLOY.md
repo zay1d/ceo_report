@@ -42,7 +42,9 @@ sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set
 2. Дописать `логин:хэш` через запятую в `TCM_USERS` в `/opt/ceo-report/.env`. Править файл от его владельца: `sudo -u svc-ceo nano /opt/ceo-report/.env`. От root запись не пройдёт («Permission denied»): у папки `/opt/ceo-report` sticky-бит, и ядро (`fs.protected_regular`) не даёт root открыть на запись чужой файл в такой папке.
 3. Перезапустить: `sudo systemctl restart ceo-report`.
 
-**Роли.** По умолчанию пользователь — «руководство»: видит и пишет оба комментария. Логины ответственных (менеджеров) перечислить в `TCM_MANAGERS` через запятую: они видят и пишут только «Комментарий ответственного».
+**Роли.** По умолчанию пользователь — «руководство»: видит и пишет оба комментария. Логины ответственных (менеджеров) перечислить в `TCM_MANAGERS` через запятую: они видят и пишут только «Комментарий ответственного». Сейчас: `ceo` — руководство, `team` — логин команды (в `TCM_MANAGERS`).
+
+**MallSense (трафик).** В `/opt/ceo-report/.env` заданы `MALLSENSE_XTOKEN` и `MALLSENSE_APP_KEY` — те же, что в `/opt/mallsense-report/.env` (действуют до 09.06.2027). Проверка: `sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set +a && ../venv/bin/python -m tcm.mallsense'`. Если MallSense не отвечает, страница берёт трафик из таблицы и пишет об этом. Сервису нужен исходящий HTTPS к `api.mallsense.ae`.
 
 **Комментарии** — обычный JSON-файл `/opt/ceo-report/state/comments.json`. Резервная копия: `sudo cp -a /opt/ceo-report/state/comments.json ~/comments-$(date +%F).json`.
 
