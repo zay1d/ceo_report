@@ -46,6 +46,8 @@ sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set
 
 **MallSense (трафик).** В `/opt/ceo-report/.env` заданы `MALLSENSE_XTOKEN` и `MALLSENSE_APP_KEY` — те же, что в `/opt/mallsense-report/.env` (действуют до 09.06.2027). Проверка: `sudo -u svc-ceo bash -c 'cd /opt/ceo-report/server && set -a && . ../.env && set +a && ../venv/bin/python -m tcm.mallsense'`. Если MallSense не отвечает, страница берёт трафик из таблицы и пишет об этом. Сервису нужен исходящий HTTPS к `api.mallsense.ae`.
 
+**PDF «Отчёт по арендатору»** («Выгрузить анализ»). В `.env` задано `TCM_TR_DATA=/opt/tcm-dashboard/app/data` — данные дашборда TCM (обновляются таймером `tcm-dashboard-update` раз в час). Печатает установленный на ВМ `google-chrome`. Если кнопка пишет «выгрузка не настроена» — нет `TCM_TR_DATA` или Chrome; «нет данных дашборда» — проверить `/opt/tcm-dashboard/app/data/model.json`. Ошибки печати — в `journalctl -u ceo-report`.
+
 **Комментарии** — обычный JSON-файл `/opt/ceo-report/state/comments.json`. Резервная копия: `sudo cp -a /opt/ceo-report/state/comments.json ~/comments-$(date +%F).json`.
 
 **Заменить ключ сервисного аккаунта:**

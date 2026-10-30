@@ -499,13 +499,26 @@ function toggleMi(k,btn){
 }
 function closeMi(){ const b=$('#mpop'); if(b) b.hidden=true; }
 
-/* ---------- «Выгрузить анализ»: заготовка, PDF будет строиться по выбранному бренду ---------- */
+/* ---------- «Выгрузить анализ»: PDF «Отчёт по арендатору» (2 листа A4) по выбранному бренду ---------- */
 let toastT=null;
 function toast(msg){ const el=$('#toast'); el.textContent=msg; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>{el.hidden=true;},6500); }
-function exportAnalysis(){
+let exporting=false;
+async function exportAnalysis(){
   const one=state.f.brand&&cur.setA&&cur.setA.length===1?cur.setA[0]:null;
   if(!one){ toast('Выгрузка анализа строится по одному бренду. Выберите бренд через «Поиск» и нажмите ещё раз.'); return; }
-  toast('PDF-анализ по бренду «'+one.name+'» за '+fmtRange(cur.P[0],cur.P[1])+' пока не подключён: нужен шаблон PDF. Сейчас кнопка — заготовка.');
+  if(exporting) return;
+  exporting=true; const btn=$('#btnExport'); btn.disabled=true; btn.classList.add('busy');
+  toast('Готовлю PDF по «'+one.name+'»… Обычно это 10–20 секунд.');
+  try{
+    const r=await fetch('api/report.pdf?brand='+encodeURIComponent(one.name),{credentials:'same-origin'});
+    if(r.status===401){ location.href='login'; return; }
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||('HTTP '+r.status)); }
+    const blob=await r.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download='Отчёт по арендатору — '+one.name+'.pdf';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast('PDF по «'+one.name+'» скачан. Период отчёта — с начала года по последний месяц с оборотом, независимо от выбранного на странице.');
+  }catch(e){ toast('Не удалось выгрузить PDF: '+e.message); }
+  finally{ exporting=false; btn.disabled=false; btn.classList.remove('busy'); }
 }
 
 /* ---------- комментарии: ответственного и руководства (хранятся на сервере) ---------- */

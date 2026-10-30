@@ -16,6 +16,8 @@
   TCM_MANAGERS        логины с ролью «ответственный» через запятую: комментарий руководства видят, но не пишут
   MALLSENSE_XTOKEN,   ключи MallSense: трафик ТРЦ и зон по счётчикам (без них — из вкладки
   MALLSENSE_APP_KEY   «Заполняемость Mall»), см. mallsense.py
+  TCM_TR_DATA         папка с model.json и raw_dump.json дашборда TCM — данные PDF «Отчёт по арендатору»
+  TCM_CHROME          путь к Chrome для печати PDF (по умолчанию ищется сам), см. tenant_report.py
 """
 from __future__ import annotations
 
@@ -28,11 +30,14 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from urllib.parse import quote
+
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 
 from .auth import Throttle, check_password, load_users
 from .comments import KINDS, MAX_OBJ, MAX_TEXT, CommentStore, load_managers
+from .tenant_report import ReportError, TenantReports
 
 log = logging.getLogger("tcm")
 
@@ -77,7 +82,7 @@ def default_loader() -> dict:
 
 def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] | None = None,
                secret: str | None = None, state_dir: str | None = None,
-               managers: set[str] | None = None) -> FastAPI:
+               managers: set[str] | None = None, reports: TenantReports | None = None) -> FastAPI:
     logging.basicConfig(level=logging.INFO)
     users = users if users is not None else load_users()
     secret = secret or os.environ.get("TCM_SECRET")
@@ -89,6 +94,7 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
     throttle = Throttle()
     comments = CommentStore(state_dir if state_dir is not None else os.environ.get("TCM_STATE_DIR") or None)
     managers = managers if managers is not None else load_managers()
+    reports = reports or TenantReports()
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -206,6 +212,26 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
         if kind == "management" and role(u) != "management":
             return JSONResponse({"error": "только для руководства"}, status_code=403)
         return {"item": comments.put(obj, kind, text, u)}
+
+    @app.get("/api/report.pdf")
+    def report_pdf(request: Request, brand: str = ""):
+        """PDF «Отчёт по арендатору» (2 листа A4) по одному бренду."""
+        if not user(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        brand = brand.strip()[:MAX_OBJ]
+        if not brand:
+            return JSONResponse({"error": "не указан бренд"}, status_code=400)
+        try:
+            pdf, last = reports.pdf(brand)
+        except ReportError as e:
+            return JSONResponse({"error": str(e)}, status_code=503 if "не настроена" in str(e) else 422)
+        except Exception:
+            log.exception("не удалось собрать PDF по бренду %s", brand)
+            return JSONResponse({"error": "не удалось собрать PDF, подробности в логах сервера"}, status_code=500)
+        name = f"Отчёт по арендатору — {brand} — {last}.pdf"
+        safe = "".join(c if c.isascii() and (c.isalnum() or c in "-_.") else "_" for c in name)
+        return Response(pdf, media_type="application/pdf", headers={
+            "Content-Disposition": f"attachment; filename=\"{safe}\"; filename*=UTF-8''{quote(name)}"})
 
     @app.get("/fonts.css")
     def fonts():

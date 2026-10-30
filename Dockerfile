@@ -4,6 +4,7 @@ COPY server/requirements.txt server/requirements.txt
 RUN pip install --no-cache-dir -r server/requirements.txt
 COPY server/ server/
 COPY web/ web/
+COPY report/ report/   # шаблон PDF по арендатору; для печати в образ нужен Chrome (на ВМ используется systemd-вариант)
 WORKDIR /app/server
 RUN useradd -r -u 10001 tcm && mkdir /state && chown tcm /state   # комментарии (том)
 USER tcm

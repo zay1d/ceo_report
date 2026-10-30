@@ -4,6 +4,7 @@
 
 - `server/tcm/model.py` — разбор вкладок таблицы → JSON для страницы (всё в $, помесячно)
 - `server/tcm/mallsense.py` — трафик ТРЦ и зон из MallSense API (ключи `MALLSENSE_XTOKEN`, `MALLSENSE_APP_KEY`; без них — из таблицы). Справка по API — `~/Desktop/Проекты Claude/SNRG API/MallSense_API.md`
+- `server/tcm/tenant_report.py` + `report/` — PDF «Отчёт по арендатору» для «Выгрузить анализ»: шаблон Hyper Partners (`report/`, с демо-данными, код `final.js`/`charts.js` не править — см. `report/README-INTEGRATION.md`), данные — модель дашборда TCM (`TCM_TR_DATA`), печать — Chrome без окна
 - `server/tcm/sheets.py` — чтение таблицы, `server/tcm/app.py` — сервер (FastAPI, вход по паролю), `server/tcm/comments.py` — комментарии (JSON-файл в `TCM_STATE_DIR`, роли через `TCM_MANAGERS`)
 - `web/index.html`, `web/app.js`, `web/fonts.css` — страница (мобильный вид по умолчанию, десктоп — `@media (min-width:1024px)`). Основа — макет команды «commerce app» (16.10.2026), переведённый на помесячные данные в $
 - `deploy/` — docker-compose (приложение на 127.0.0.1:8000; Caddy — профиль для своего домена), unit-файл systemd. Наружу страница выводится через Tailscale serve/funnel
