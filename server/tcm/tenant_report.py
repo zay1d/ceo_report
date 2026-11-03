@@ -195,7 +195,9 @@ def build_data(M: dict, sheets: dict) -> dict:
             v = s.get("to_usd")
             if v is None and s.get("missing", True):
                 continue
-            rows.append("{y:%s,m:%s,to:%s}" % (m[:4], int(m[5:7]), "null" if v is None else round(v)))
+            rows.append((m, v))
+        rows = trim_opening(rows)
+        rows = ["{y:%s,m:%s,to:%s}" % (m[:4], int(m[5:7]), "null" if v is None else round(v)) for m, v in rows]
         n_hist = sum(1 for m in months if m <= last and to(b, m))
         brands.append(obj({"id": rid, "brand": b["brand"], "cat": cat, "catCode": code, "seg": seg,
                            "sub": sub, "sub2": sub2, "area": a, "floor": floor_of(b),
@@ -204,7 +206,8 @@ def build_data(M: dict, sheets: dict) -> dict:
         # договор
         dep_i = b.get("dep") or {}
         cur_y = int(dep_i["cur_year"]) if dep_i.get("cur_year") else None
-        lad = b.get("rate_ladder") or []
+        # 0 в лесенке — «ставки нет» (аренда процентом от оборота), а не $0
+        lad = [x if x else None for x in (b.get("rate_ladder") or [])]
         rate = lad[cur_y - 1] if cur_y and 1 <= cur_y <= len(lad) else None
         rate = rate or next((x for x in reversed(lad) if x), None)
         if not rate and sv(b, last, "rent") and a:
@@ -256,6 +259,21 @@ def build_data(M: dict, sheets: dict) -> dict:
 
     return {"brands": brands, "deals": deals, "mall": mall, "taxonomy": taxonomy, "plan": plan_rows,
             "fact": fact_rows, "plan_year": plan_year, "last": last, "ids": ids}
+
+
+def trim_opening(rows: list) -> list:
+    """Убирает неполные месяцы открытия в начале истории: договор с 29.02 даёт февраль
+    с оборотом за день (0 или $30 тыс. против $1,3 млн дальше). В отчёте такой месяц
+    становится «худшим», даёт OCR 386% и тянет вниз скользящий год."""
+    rows = list(rows)
+    while len(rows) > 3:
+        v = rows[0][1]
+        nxt = sorted(x for _, x in rows[1:4] if x)
+        if v is None or v <= 0 or (nxt and v < 0.35 * nxt[len(nxt) // 2]):
+            rows.pop(0)
+            continue
+        break
+    return rows
 
 
 RATES_INJECT = """

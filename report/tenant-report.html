@@ -130,6 +130,7 @@ tr.yr td{background:#EDF0F5;font-weight:600;color:var(--navy)}
 /* реквизиты листа — пилюлями справа от названия, а не строкой мелкого текста */
 .sh-id{flex:0 1 auto;max-width:32%;min-width:120px}
 .sh-k{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);font-weight:600;line-height:1.2}
+.sh-pills .chain{display:inline-flex;flex-wrap:nowrap;align-items:center;gap:3px 4px;max-width:100%}
 .sh-pills{display:flex;flex-wrap:wrap;align-content:flex-start;gap:3px 4px;flex:1 1 auto;min-width:0;padding-top:1px}
 .pill{display:inline-block;font-size:10px;line-height:1.2;padding:1.5px 7px;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:#fff;white-space:nowrap}
 .pill.seg{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600;white-space:normal}
@@ -1243,7 +1244,20 @@ function barChart(host, o){
         var x1 = padL + slot / 2, x2 = padL + slot * (n - 1) + slot / 2;
         s += '<line x1="' + x1.toFixed(1) + '" y1="' + tY(0).toFixed(1) + '" x2="' + x2.toFixed(1) +
              '" y2="' + tY(n - 1).toFixed(1) + '" stroke="' + C.copper + '" stroke-width="1.6" stroke-dasharray="6 3"/>';
-        s += T(x2, tY(n - 1) - 6, 'тренд', { size:10, w:600, fill:C.copper, a:'end' });
+        /* подпись «тренд» — над линией в том месте, где столбцы и их подписи ниже неё (обычно провал),
+           иначе она ложится на подпись последнего столбца */
+        var tlw = tw('тренд', 10, 600), tpos = null;
+        for (var ti = n - 1; ti >= 0 && tpos == null; ti--){
+          var tcx = padL + slot * ti + slot / 2, ty = tY(ti) - 6, ok = ty - fs(10) > 0;
+          for (var tj = 0; tj < n && ok; tj++){
+            var bx = padL + slot * tj + slot / 2;
+            if (Math.abs(bx - tcx) > tlw / 2 + slot / 2) continue;
+            var rv = rows[tj].val, top = rv == null ? y0 - 30 : y0 - Math.max(1, rv / max * ih) - fs(17);
+            if (top < ty + 3) ok = false;
+          }
+          if (ok) tpos = [Math.min(Math.max(tcx, padL + tlw / 2), w - padR - tlw / 2), ty];
+        }
+        if (tpos) s += T(tpos[0], tpos[1], 'тренд', { size:10, w:600, fill:C.copper });
       }
     }
   }
@@ -1652,12 +1666,27 @@ function rankChart(host, items, o){
 /* pts: [{x, y, me, name}], opts: {h, xLab, yLab, xFmt, yFmt, xMed, yMed, bands:[lo,hi]} */
 function scatterChart(host, pts, o){
   var w = Math.max(host.clientWidth || 320, 170), h = o.h || host.clientHeight || 240;
-  var padL = 40, padR = 12, padT = 12, padB = 30;
+  var padL = 40, padR = 12, padT = h >= 110 ? fs(22) : 12, padB = 30;
   var xs = pts.map(function(p){ return p.x; }), ys = pts.map(function(p){ return p.y; });
-  var x0 = 0, x1 = Math.max.apply(null, xs) * 1.08;
-  var y0v = 0, y1 = Math.max.apply(null, ys) * 1.08;
-  var X = function(v){ return padL + (v - x0) / (x1 - x0) * (w - padL - padR); };
-  var Y = function(v){ return h - padB - (v - y0v) / (y1 - y0v) * (h - padT - padB); };
+  /* шкала — по основной массе базы, а не по максимуму: два-три выброса (OCR 140%, ТО/м² в разы
+     выше медианы) иначе сжимают остальные точки в угол. Выбросы прижимаются к краю шкалы */
+  var qt = function(a, p){
+    a = a.slice().sort(function(m, n){ return m - n; });
+    var i = (a.length - 1) * p, k = Math.floor(i), k2 = Math.min(k + 1, a.length - 1);
+    return a[k] + (a[k2] - a[k]) * (i - k);
+  };
+  var meP = pts.filter(function(p){ return p.me; })[0], zz = o.zones || {};
+  var xCap = Math.max(qt(xs, 0.95) * 1.1, meP ? meP.x * 1.15 : 0, (zz.tLo || 0) * 1.3);
+  var yCap = Math.max(qt(ys, 0.95) * 1.1, meP ? meP.y * 1.25 : 0, Math.max(zz.oAlarm || 0, zz.oHi || 0) * 1.4);
+  var x0 = 0, x1 = Math.min(Math.max.apply(null, xs) * 1.08, xCap);
+  var y0v = 0, y1 = Math.min(Math.max.apply(null, ys) * 1.08, yCap);
+  var X = function(v){ return padL + (Math.min(v, x1) - x0) / (x1 - x0) * (w - padL - padR); };
+  var Y = function(v){ return h - padB - (Math.min(v, y1) - y0v) / (y1 - y0v) * (h - padT - padB); };
+  var outN = pts.filter(function(p){ return !p.me && (p.x > x1 || p.y > y1); }).length;
+  /* занятые места подписей осей: что наезжает на уже поставленную — не ставим */
+  var yTaken = [], xTaken = [];
+  var yFree = function(y){ return !yTaken.some(function(t){ return Math.abs(t - y) < fs(10); }); };
+  var xFree = function(a, b){ return !xTaken.some(function(t){ return !(b + 3 < t[0] || a - 3 > t[1]); }); };
   var s = '<svg width="'+w+'" height="'+h+'" xmlns="http://www.w3.org/2000/svg">';
   if (o.bands){                                     /* коридор нормы по оси Y */
     s += '<rect x="'+padL+'" y="'+Y(o.bands[1]).toFixed(1)+'" width="'+(w-padL-padR)+
@@ -1679,19 +1708,24 @@ function scatterChart(host, pts, o){
          '" fill="#F0B429" fill-opacity="0.22"/>';
     s += '<rect x="'+xl.toFixed(1)+'" y="'+yh.toFixed(1)+'" width="'+Math.max(0, xR-xl).toFixed(1)+'" height="'+(yB-yh).toFixed(1)+
          '" fill="#2FA36B" fill-opacity="0.20"/>';
-    /* пунктиры OCR с подписями слева, границы ТО — засечками на оси X */
-    [[z.oHi, '#0C447C'], [z.oLo, '#0C447C'], [z.oAlarm, '#A32D2D']].forEach(function(g){
+    /* пунктиры OCR с подписями слева (тревога важнее, подписывается первой), границы ТО — засечками на оси X */
+    [[z.oAlarm, '#A32D2D'], [z.oHi, '#0C447C'], [z.oLo, '#0C447C']].forEach(function(g){
       var y = Y(g[0]);
-      if (y < padT || y > yB) return;
+      if (g[0] > y1 || y > yB) return;
       s += '<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+xR+'" y2="'+y.toFixed(1)+
            '" stroke="'+g[1]+'" stroke-width="0.9" stroke-dasharray="5 3" stroke-opacity="0.55"/>';
+      if (!yFree(y)) return;
+      yTaken.push(y);
       s += T(padL - fs(3), y + fs(3), (o.yFmt || num1)(g[0]), { size:9, w:600, fill:g[1], a:'end' });
     });
-    [z.tCrit, z.tLo].forEach(function(v){
+    [z.tLo, z.tCrit].forEach(function(v){
       var x = X(v);
-      if (x < padL || x > xR) return;
+      if (v > x1 || x < padL) return;
       s += '<line x1="'+x.toFixed(1)+'" y1="'+yB+'" x2="'+x.toFixed(1)+'" y2="'+(yB-5)+'" stroke="#6B7280"/>';
-      s += T(x, yB + 12, (o.xFmt || money)(v), { size:9, w:600, fill:'#6B7280' });
+      var lab = (o.xFmt || money)(v), lw = tw(lab, 9, 600) / 2;
+      if (!xFree(x - lw, x + lw)) return;
+      xTaken.push([x - lw, x + lw]);
+      s += T(x, yB + 12, lab, { size:9, w:600, fill:'#6B7280' });
     });
   }
   if (o.xMed != null){
@@ -1718,33 +1752,53 @@ function scatterChart(host, pts, o){
     '</defs>';
   var TONE = { sub2:'n', sub:'b', cat:'y' };
   var order = ['cat', 'sub', 'sub2'];              /* дальние рисуем первыми, ближние поверх */
+  /* точки мельче и с белым ободком: в плотной группе каждая читается отдельно, а не сливается в пятно */
   order.forEach(function(tone){
     pts.forEach(function(p){
       if (p.me || (p.tone || 'cat') !== tone) return;
-      var big = tone !== 'cat', cx2 = X(p.x), cy2 = Y(p.y);
-      s += '<circle cx="'+cx2.toFixed(1)+'" cy="'+cy2.toFixed(1)+'" r="'+(big ? 3.8 : 3.2)+
-           '" fill="url(#'+puid+TONE[tone]+')"/>';
-      s += '<circle cx="'+(cx2-1).toFixed(1)+'" cy="'+(cy2-1.1).toFixed(1)+'" r="0.9" fill="#fff" fill-opacity="0.75"/>';
+      var big = tone !== 'cat', cx2 = X(p.x), cy2 = Y(p.y), out = p.x > x1 || p.y > y1;
+      s += '<circle cx="'+cx2.toFixed(1)+'" cy="'+cy2.toFixed(1)+'" r="'+(big ? 3.1 : 2.7)+
+           '" fill="url(#'+puid+TONE[tone]+')" stroke="#fff" stroke-width="0.6"' +
+           (out ? ' fill-opacity="0.75"' : '') + '/>';
+      if (out){                                    /* за шкалой: стрелка наружу */
+        var ax = p.x > x1 ? 4 : 0, ay = p.y > y1 ? -4 : 0;
+        s += '<line x1="'+(cx2 + ax * 0.9).toFixed(1)+'" y1="'+(cy2 + ay * 0.9).toFixed(1)+'" x2="'+(cx2 + ax * 1.9).toFixed(1)+
+             '" y2="'+(cy2 + ay * 1.9).toFixed(1)+'" stroke="#6B7280" stroke-width="1"/>';
+      }
     });
   });
-  /* подписи соседей: мелким шрифтом, с проверкой на наложение — что не влезло, пропускаем.
+  /* подписи соседей: мелким шрифтом, с проверкой на наложение — и с другими подписями, и с точками.
      Своя под-подкатегория подписывается первой, у неё приоритет на место. */
   if (h >= 130){
     var taken = [];                                /* занятые прямоугольники подписей */
-    var mePt = pts.filter(function(p){ return p.me; })[0];
-    if (mePt) taken.push([X(mePt.x) - 12, Y(mePt.y) - fs(14), X(mePt.x) + 100, Y(mePt.y) + fs(14)]);
+    var mePt = meP;
+    if (mePt){
+      var mw = Math.max(tw(mePt.name, 10, 700), tw('$00000 · 00%', 9, 600)) + 14;
+      var mr = X(mePt.x) < w - 90;
+      taken.push(mr ? [X(mePt.x) - 8, Y(mePt.y) - fs(19), X(mePt.x) + mw, Y(mePt.y) + fs(14)]
+                    : [X(mePt.x) - mw, Y(mePt.y) - fs(19), X(mePt.x) + 8, Y(mePt.y) + fs(14)]);
+    }
+    if (outN && h >= 110){                         /* место под пометку «за шкалой» */
+      var nw = tw(plural(outN, 'точка', 'точки', 'точек') + ' за шкалой — у края, со стрелкой', 8.5, 400);
+      taken.push([w - padR - 4 - nw, 0, w - padR, padT]);
+    }
     var fits = function(r){
       return !taken.some(function(t){ return !(r[2] < t[0] || r[0] > t[2] || r[3] < t[1] || r[1] > t[3]); });
     };
+    /* подпись не должна ложиться на чужие точки */
+    var dots = pts.map(function(p){ return [X(p.x), Y(p.y)]; });
+    var clear = function(r, self){
+      return !dots.some(function(d, k){ return k !== self && d[0] > r[0] - 2 && d[0] < r[2] + 2 && d[1] > r[1] - 2 && d[1] < r[3] + 2; });
+    };
     ['sub2', 'sub', 'cat'].forEach(function(tone){
-      pts.forEach(function(p){
+      pts.forEach(function(p, k){
         if (p.me || (p.tone || 'cat') !== tone || !p.name) return;
         var nm = p.name.length > 11 ? p.name.slice(0, 10) + '…' : p.name;
         var tw2 = tw(nm, 8.5, 400), cx2 = X(p.x), cy2 = Y(p.y);
         var right = cx2 + 6 + tw2 < w - padR;
-        var x1 = right ? cx2 + 5 : cx2 - 5 - tw2, x2 = x1 + tw2;
-        var rect = [x1 - 1, cy2 - fs(5), x2 + 1, cy2 + fs(5)];
-        if (x1 < padL || !fits(rect)) return;
+        var x1t = right ? cx2 + 5 : cx2 - 5 - tw2, x2t = x1t + tw2;
+        var rect = [x1t - 1, cy2 - fs(5), x2t + 1, cy2 + fs(5)];
+        if (x1t < padL || !fits(rect) || !clear(rect, k)) return;
         taken.push(rect);
         s += T(right ? cx2 + 5 : cx2 - 5, cy2 + fs(3), nm,
                { size:8.5, fill:tone === 'sub2' ? '#4A5568' : '#8C9BB4', a:right ? 'start' : 'end' });
@@ -1765,39 +1819,48 @@ function scatterChart(host, pts, o){
     s += '<g class="matdot"><circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+
          '" r="6" fill="url(#' + sid + ')" stroke="#fff" stroke-width="1.5"/>' +
          '<circle cx="'+(X(p.x)-2).toFixed(1)+'" cy="'+(Y(p.y)-2).toFixed(1)+'" r="1.6" fill="#fff" fill-opacity="0.7"/></g>';
+    /* подпись своей точки — на белой плашке, чтобы соседние точки её не перекрывали */
     var lx = X(p.x), ly = Y(p.y);
-    var right = lx < w - 90;
-    s += T(right ? lx + 10 : lx - 10, ly - fs(8), p.name,
-           { size:10, w:700, fill:zc[2], a:right ? 'start' : 'end' });
-    if (h >= 110) s += T(right ? lx + 10 : lx - 10, ly + fs(10), (o.xFmt || money)(p.x) + ' · ' + (o.yFmt || num1)(p.y),
-           { size:9, w:600, fill:C.ink, a:right ? 'start' : 'end' });
+    var right = lx < w - 90, ax = right ? lx + 10 : lx - 10, an = right ? 'start' : 'end';
+    var l1 = p.name, l2 = (o.xFmt || money)(p.x) + ' · ' + (o.yFmt || num1)(p.y);
+    var bw = Math.max(tw(l1, 10, 700), h >= 110 ? tw(l2, 9, 600) : 0) + 6;
+    var bx = right ? ax - 3 : ax - bw + 3;
+    s += '<rect x="'+bx.toFixed(1)+'" y="'+(ly - fs(18)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+
+         (h >= 110 ? fs(31) : fs(14)).toFixed(1)+'" rx="3" fill="#fff" fill-opacity="0.85"/>';
+    s += T(ax, ly - fs(8), l1, { size:10, w:700, fill:zc[2], a:an });
+    if (h >= 110) s += T(ax, ly + fs(10), l2, { size:9, w:600, fill:C.ink, a:an });
   });
   /* оси */
   s += '<line x1="'+padL+'" y1="'+(h-padB)+'" x2="'+(w-padR)+'" y2="'+(h-padB)+'" stroke="#B5BAC2"/>';
   s += '<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(h-padB)+'" stroke="#B5BAC2"/>';
   var xLabW = h >= 110 ? tw(o.xLab || '', 9.5, 400) + 10 : 0;
   if (h >= 130){                                  /* на низком графике шкалу не подписываем */
-    [0.25, 0.5, 0.75, 1].forEach(function(t){
-      var vx = x0 + (x1 - x0) * t;
-      var lw = tw((o.xFmt || money)(vx), 9, 400) / 2;
-      if (X(vx) - lw > padL + xLabW)                           /* не наезжаем на подпись оси */
-        s += T(X(vx), h - padB + 12, (o.xFmt || money)(vx), { size:9, fill:C.mut });
-    });
-    /* шкала нагрузки — круглыми значениями с шагом 5, а не долями от максимума:
-       дробные 8,7% и 17,4% спорили с подписями коридоров */
-    var step = (y1 - y0v) > 80 ? 20 : ((y1 - y0v) > 55 ? 10 : 5);
-    /* шкалу ведём ВЫШЕ зоны коридоров: внизу и так плотно от их подписей */
+    /* шкала ТО — круглыми значениями, мимо засечек нормы */
+    var xr = x1 - x0, xst = [1, 2, 2.5, 5, 10].map(function(k){ return k * Math.pow(10, Math.floor(Math.log10(xr / 4))); })
+      .filter(function(v){ return xr / v <= 5; })[0] || xr / 4;
+    for (var vx = xst; vx < x1; vx += xst){
+      var lab = (o.xFmt || money)(vx), lw = tw(lab, 9, 400) / 2, xx = X(vx);
+      if (xx - lw <= padL + xLabW || xx + lw > w - 2 || !xFree(xx - lw, xx + lw)) continue;
+      xTaken.push([xx - lw, xx + lw]);
+      s += T(xx, h - padB + 12, lab, { size:9, fill:C.mut });
+    }
+    /* шкала нагрузки — круглыми значениями, выше зоны коридоров и мимо их подписей */
+    var step = (y1 - y0v) > 80 ? 20 : ((y1 - y0v) > 40 ? 10 : 5);
     var from = o.zones ? Math.max(o.zones.oAlarm, o.zones.oHi) : y0v;
     for (var vy = Math.ceil((from + 1) / step) * step; vy < y1; vy += step){
       var yy = Y(vy);
-      if (yy < padT + 6 || yy > h - padB - 4) continue;
+      if (yy < padT + 6 || yy > h - padB - 4 || !yFree(yy)) continue;
+      yTaken.push(yy);
       s += T(padL - 5, yy + 3, (o.yFmt || num1)(vy), { size:9, fill:C.mut, a:'end' });
     }
   }
   if (h >= 110){                                  /* подписи осей — по краям, чтобы не сталкиваться со шкалой */
     s += T(padL, h - 4, o.xLab || '', { size:9.5, fill:C.mut, a:'start' });
-    s += T(Math.max(2, padL - 34), padT + 4, o.yLab || '', { size:9.5, fill:C.mut, a:'start' });
+    s += T(2, padT - fs(9), o.yLab || '', { size:9.5, fill:C.mut, a:'start' });
   }
+  if (outN && h >= 110)                           /* сколько точек прижато к краю шкалы */
+    s += T(w - padR - 2, padT - fs(9), plural(outN, 'точка', 'точки', 'точек') + ' за шкалой — у края, со стрелкой',
+           { size:8.5, fill:'#6B7280', a:'end' });
   host.innerHTML = s + '</svg>';
 }
 
@@ -1841,6 +1904,16 @@ function matChart(host, rows, vals, o){
   /* коридор входит в масштаб: иначе полоса уходит за нижнюю границу и точек в ней не видно */
   var scale = o.band ? live.concat(o.band) : live;
   if (o.bench) scale = scale.concat([o.bench.lo, o.bench.hi]);
+  /* выброс (неполный первый месяц: оборот за пару дней, аренда за месяц — OCR 386%) не должен
+     сплющивать график: шкала — по основной массе, выброс рисуется у верхнего края со своей подписью */
+  var cap = null;
+  if (o.band && live.length >= 4){
+    var srt = live.slice().sort(function(a, b){ return a - b; });
+    cap = Math.max(srt[Math.floor((srt.length - 1) * 0.9)], o.band[0], o.band[1],
+                   o.bench ? Math.max(o.bench.lo, o.bench.hi) : 0) * 1.35;
+    if (srt[srt.length - 1] > cap) scale = scale.map(function(x){ return Math.min(x, cap); });
+    else cap = null;
+  }
   var mx = Math.max.apply(null, scale), mn = Math.min.apply(null, scale);
   /* поля по краям: под крайние подписи значения и месяца, иначе они срезаются */
   var edge = Math.max(tw(fmt(v[0]), 8.5, 600), tw(fmt(v[n - 1]), 8.5, 600),
@@ -1853,11 +1926,11 @@ function matChart(host, rows, vals, o){
   var y0 = h - padB, ih = y0 - padT, iw = w - padL - padR, step = n > 1 ? iw / (n - 1) : 0;
   var pad = (mx - mn) * 0.18 || mx * 0.1 || 1;
   var hi = mx + pad, lo = Math.max(0, mn - pad);
-  var Y = function(x){ return y0 - (x - lo) / (hi - lo) * ih; };
+  var Y = function(x){ if (cap != null && x > cap) x = mx + pad * 0.6; return y0 - (x - lo) / (hi - lo) * ih; };
   var X = function(i){ return padL + step * i; };
   /* цвет по уровню значения: минимум ряда — красный, максимум — зелёный */
   var hue = function(x){
-    var t = mx === mn ? 0.5 : (x - mn) / (mx - mn);
+    var t = mx === mn ? 0.5 : Math.max(0, Math.min(1, (x - mn) / (mx - mn)));
     if (o.invert) t = 1 - t;                      /* для нагрузки высокое значение — плохо */
     var stop = [[226, 85, 61], [240, 180, 41], [47, 163, 107]];
     var i = t < 0.5 ? 0 : 1, k = t < 0.5 ? t * 2 : (t - 0.5) * 2;
@@ -1932,8 +2005,46 @@ function matChart(host, rows, vals, o){
        '" stroke="#DDE1E7"/>';
   s += '<path d="' + line + '" fill="none" stroke="#6B4226" stroke-width="1.3" stroke-linejoin="round"/>';
 
-  var everyLab = Math.max(1, Math.ceil(n * fs(36) / iw)), lastLo = -1e9;
+  var everyLab = Math.max(1, Math.ceil(n * fs(36) / iw));
   var iNow = n - 1, iPrev = n - 1 - 12;          /* точки, которые сравниваются в подзаголовке карточки */
+  /* подписи значений ставим только туда, где они не ложатся на точки и на другие подписи:
+     сначала основное место (над точкой / под зелёной), если занято — противоположное, иначе без подписи */
+  var labs = '', taken = [], dots = [];
+  v.forEach(function(x, i){ if (x != null) dots.push([X(i), Y(x), i]); });
+  /* пересекает ли прямоугольник подписи линию ряда (проверка по точкам вдоль отрезков) */
+  var cross = function(r){
+    for (var k = 1; k < dots.length; k++){
+      var a = dots[k - 1], b = dots[k];
+      if (b[2] !== a[2] + 1) continue;
+      for (var t = 0; t <= 1; t += 0.1){
+        var px = a[0] + (b[0] - a[0]) * t, py = a[1] + (b[1] - a[1]) * t;
+        if (px > r[0] && px < r[2] && py > r[1] && py < r[3]) return true;
+      }
+    }
+    return false;
+  };
+  var place = function(i, cx, cy, txt, fill, under){
+    var hw = tw(txt, 10.5, 600) / 2 + 1;
+    cx = Math.min(Math.max(cx, hw + 1), w - hw - 1);
+    var tries = under ? [cy + fs(13), cy - fs(6)] : [cy - fs(6), cy + fs(13)];
+    for (var k = 0; k < tries.length; k++){
+      var ty = tries[k], r = [cx - hw, ty - fs(9), cx + hw, ty + fs(1.5)];
+      if (r[1] < 0 || r[3] > y0 + fs(1)) continue;
+      var hit = dots.some(function(d){ return d[2] !== i && d[0] > r[0] - 4 && d[0] < r[2] + 4 && d[1] > r[1] - 4 && d[1] < r[3] + 4; }) ||
+                cross(r) ||
+                taken.some(function(t){ return !(r[2] < t[0] || r[0] > t[2] || r[3] < t[1] || r[1] > t[3]); });
+      if (hit) continue;
+      taken.push(r);
+      labs += T(cx, ty, txt, { size:10.5, w:600, fill:fill });
+      return;
+    }
+  };
+  /* последняя точка — главная, её место бронируется первым */
+  if (v[n - 1] != null){
+    var lastAbove = !((o.hot != null ? o.hot : (o.band ? Math.max(o.band[0], o.band[1]) : null)) != null &&
+                      v[n - 1] <= (o.hot != null ? o.hot : Math.max(o.band[0], o.band[1])));
+    place(n - 1, X(n - 1), Y(v[n - 1]), fmt(v[n - 1]), lastAbove ? '#5A3A24' : '#2E7D5B', !lastAbove);
+  }
   v.forEach(function(x, i){
     if (x == null) return;
     var cx = X(i), cy = Y(x);
@@ -1949,12 +2060,13 @@ function matChart(host, rows, vals, o){
          '" fill="url(#' + uid + grad + ')"/>';
     s += '<circle cx="' + (cx - 1).toFixed(1) + '" cy="' + (cy - 1.1).toFixed(1) + '" r="1" fill="#fff" fill-opacity="0.75"/>';
     if (hot) s += '</g>';
-    if (lim != null && !above){                   /* точки не выше порога подписываем снизу */
-      var lw = tw(fmt(x), 10.5, 600) + fs(3);
-      if (cx - lastLo >= lw){ s += T(cx, cy + fs(13), fmt(x), { size:10.5, w:600, fill:'#2E7D5B' }); lastLo = cx; }
-    } else if ((i % everyLab === 0 && n - 1 - i >= everyLab * 0.6) || i === n - 1)
-      s += T(cx, cy - fs(6), fmt(x), { size:10.5, w:600, fill:'#5A3A24' });
+    if (i === n - 1) return;                      /* уже подписана */
+    if (lim != null && !above)                    /* точки не выше порога подписываем снизу */
+      place(i, cx, cy, fmt(x), '#2E7D5B', true);
+    else if (i % everyLab === 0 && n - 1 - i >= everyLab * 0.6)
+      place(i, cx, cy, fmt(x), '#5A3A24', false);
   });
+  s += labs;
   var everyX = Math.max(1, Math.ceil(n * fs(44) / iw));
   rr.forEach(function(r, i){
     if (i !== n - 1 && (i % everyX !== 0 || n - 1 - i < everyX * 0.6)) return;
@@ -2032,13 +2144,19 @@ function rateChart(host, plan, fact, cur, o){
     s += '<circle cx="' + (x - 1.2).toFixed(1) + '" cy="' + (y - 1.3).toFixed(1) + '" r="1.1" fill="#fff" fill-opacity="0.75"/>';
   });
 
-  /* подписи: план сверху ступени, факт под точкой */
+  /* подписи: верхняя из пары план/факт — над линией, нижняя — под ней, иначе при близких
+     значениях «$56» ложится на «$51» */
+  var factAt = {};
+  fact.forEach(function(f){ factAt[f.y - 1] = f.fact; });
   plan.forEach(function(p, i){
-    s += T(cx(i), Y(p.plan) - fs(5), money1(p.plan), { size:10.5, w:600, fill:i === ci ? C.navy : '#5A6478' });
+    var fv = factAt[i], below = fv != null && fv >= p.plan;
+    s += T(cx(i), below ? Math.min(y0 - fs(2), Y(p.plan) + fs(13)) : Y(p.plan) - fs(5), money1(p.plan),
+           { size:10.5, w:600, fill:i === ci ? C.navy : '#5A6478' });
   });
   fact.forEach(function(f){
-    s += T(cx(f.y - 1), Y(f.fact) + fs(13), money1(f.fact),
-           { size:10.5, w:600, fill:f.y === cur ? (plan[f.y - 1] && f.fact < plan[f.y - 1].plan ? C.warn : '#2E7D5B') : '#5A3A24' });
+    var p = plan[f.y - 1], above = !p || f.fact >= p.plan, now = f.y === cur;
+    s += T(cx(f.y - 1), above ? Math.max(fs(10), Y(f.fact) - (now ? fs(9) : fs(7))) : Y(f.fact) + (now ? fs(17) : fs(14)), money1(f.fact),
+           { size:10.5, w:600, fill:now ? (p && f.fact < p.plan ? C.warn : '#2E7D5B') : '#5A3A24' });
   });
 
   s += '<line x1="' + padL + '" y1="' + y0 + '" x2="' + (w - padR) + '" y2="' + y0 + '" stroke="#B5BAC2"/>';
@@ -3086,7 +3204,9 @@ function repF(b, M){
 
 
   /* классификация читается как цепочка: сегмент → категория → подкатегория → под-подкатегория */
-  var idChain = [pill(esc(b.seg), 'seg'), pill(esc(b.cat)), pill(esc(b.sub)), pill(esc(b.sub2))].join(parr());
+  /* цепочка — одним блоком: в тесной шапке она переносится целиком, а не рвётся посередине */
+  var idChain = '<span class="chain">' +
+    [pill(esc(b.seg), 'seg'), pill(esc(b.cat)), pill(esc(b.sub)), pill(esc(b.sub2))].join(parr()) + '</span>';
   var idPlace = [pill(b.floor + ' · ' + b.unit), pill(sp(b.area) + ' м²')];
   var idPills = [idChain, pgap()].concat(idPlace);
   var head1 = sheetHead('Арендатор и его торговля', esc(b.brand), [

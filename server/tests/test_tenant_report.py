@@ -47,6 +47,21 @@ def test_build_data_and_html():
     assert "(демо-данные)" not in html
 
 
+def test_trim_opening_month():
+    rows = [("2024-02", 30), ("2024-03", 1276), ("2024-04", 1280), ("2024-05", 1130), ("2024-06", 1056)]
+    assert tr.trim_opening(rows)[0][0] == "2024-03"          # открытие 29.02: день торговли — не месяц
+    assert tr.trim_opening([("a", 0), ("b", None)] + rows[1:])[0][0] == "2024-03"
+    assert tr.trim_opening(rows[1:]) == rows[1:]             # обычная история не трогается
+    assert tr.trim_opening([("a", 900)] + rows[1:])[0][0] == "a"  # слабый, но полный месяц остаётся
+
+
+def test_zero_rate_ladder_is_no_rate():
+    m = model()
+    m["brands"][0]["rate_ladder"] = [0.0, 0.0, 0.0, 0.0, 0.0]   # аренда процентом от оборота
+    d = tr.build_data(m, SHEETS)
+    assert not any(x.strip().startswith("'zara'") for x in d["fact"])  # не рисуем «факт $0»
+
+
 def test_reports_refresh_and_resolve(tmp_path, monkeypatch):
     (tmp_path / "model.json").write_text(json.dumps(model()), encoding="utf-8")
     (tmp_path / "raw_dump.json").write_text(json.dumps({"sheets": SHEETS}), encoding="utf-8")
