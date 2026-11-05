@@ -501,7 +501,22 @@ function closeMi(){ const b=$('#mpop'); if(b) b.hidden=true; }
 
 /* ---------- «Выгрузить анализ»: PDF «Отчёт по арендатору» (2 листа A4) по выбранному бренду ---------- */
 let toastT=null;
-function toast(msg){ const el=$('#toast'); el.textContent=msg; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>{el.hidden=true;},6500); }
+/* actions — кнопки в уведомлении [{label, fn, main}]: с ними оно не исчезает само ещё минуту */
+function toast(msg,actions){
+  const el=$('#toast'); el.textContent=msg; el.hidden=false; clearTimeout(toastT);
+  if(actions&&actions.length){
+    const row=document.createElement('div'); row.className='tact';
+    actions.forEach(a=>{ const b=document.createElement('button'); b.type='button'; b.textContent=a.label;
+      if(a.main) b.className='main'; b.addEventListener('click',()=>{ el.hidden=true; a.fn(); }); row.appendChild(b); });
+    el.appendChild(row);
+  }
+  toastT=setTimeout(()=>{el.hidden=true;},actions&&actions.length?60000:6500);
+}
+function saveBlob(blob,name){
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
 let exporting=false;
 async function exportAnalysis(){
   const one=state.f.brand&&cur.setA&&cur.setA.length===1?cur.setA[0]:null;
@@ -513,10 +528,20 @@ async function exportAnalysis(){
     const r=await fetch('api/report.pdf?brand='+encodeURIComponent(one.name),{credentials:'same-origin'});
     if(r.status===401){ location.href='login'; return; }
     if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||('HTTP '+r.status)); }
-    const blob=await r.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
-    a.href=url; a.download='Отчёт по арендатору — '+one.name+'.pdf';
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000);
-    toast('PDF по «'+one.name+'» скачан. Период отчёта — с начала года по последний месяц с оборотом, независимо от выбранного на странице.');
+    const blob=await r.blob(), name='Отчёт по арендатору — '+one.name+'.pdf';
+    /* Телефон: «скачать» открывает просмотр, и «Поделиться» оттуда отправляет в Telegram ссылку, а не файл.
+       Поэтому отдаём сам файл через системное меню «Поделиться». Меню открывается только сразу после
+       нажатия, а PDF готовится 10–20 с — поэтому отдельная кнопка «Отправить PDF». */
+    let file=null; try{ file=new File([blob],name,{type:'application/pdf'}); }catch(_){}
+    const canShare=file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})&&matchMedia('(pointer:coarse)').matches;
+    if(canShare){
+      toast('PDF по «'+one.name+'» готов.',[
+        {label:'Отправить PDF',main:true,fn:()=>navigator.share({files:[file],title:name}).catch(e=>{ if(e&&e.name!=='AbortError') toast('Не удалось открыть «Поделиться»: '+e.message); })},
+        {label:'Открыть',fn:()=>saveBlob(blob,name)}]);
+    } else {
+      saveBlob(blob,name);
+      toast('PDF по «'+one.name+'» скачан. Период отчёта — с начала года по последний месяц с оборотом, независимо от выбранного на странице.');
+    }
   }catch(e){ toast('Не удалось выгрузить PDF: '+e.message); }
   finally{ exporting=false; btn.disabled=false; btn.classList.remove('busy'); }
 }

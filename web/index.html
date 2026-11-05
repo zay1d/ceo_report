@@ -279,6 +279,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 @keyframes exppulse{50%{transform:translateY(2px)}}
 @media (prefers-reduced-motion:reduce){.exp.busy svg{animation:none}}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(92vw,440px);z-index:90;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:18px;font-size:13px;line-height:1.45;box-shadow:0 14px 36px -10px rgba(0,0,0,.5)}
+#toast .tact{display:flex;gap:8px;margin-top:10px}
+#toast .tact button{flex:1;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.35);color:inherit;font-weight:600;font-size:14px}
+#toast .tact button.main{background:var(--bg);color:var(--ink);border-color:var(--bg)}
 .mallbtn{display:block;width:100%;text-align:left;border:1px solid var(--line2);border-radius:16px 22px 16px 24px;padding:10px 14px;margin:0 0 12px;background:var(--bg2)}
 .mallbtn b{display:block;font-size:14px}
 .mallbtn small{font-size:11.5px;color:var(--ink2)}
