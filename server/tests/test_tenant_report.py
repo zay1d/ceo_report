@@ -95,3 +95,12 @@ def test_endpoint():
     assert "attachment" in r.headers["content-disposition"] and "filename*=UTF-8''" in r.headers["content-disposition"]
     assert c.get("/api/report.pdf?brand=BAD").json()["error"].startswith("по бренду")
     assert c.get("/api/report.pdf").status_code == 400
+
+
+def test_zero_plan_years_are_no_plan():
+    sheets = {**SHEETS, "Физибилити": {"values": [[], ["Brand", "$/m² 1Yr", "$/m² 2Yr", "$/m² 3Yr", "$/m² 4Yr", "$/m² 5Yr"],
+                                                 ["ZARA", "38", "40", "42", "0", "0"]]}}
+    d = tr.build_data(model(), sheets)
+    # договор на 3 года: 4–5-й год в «Физибилити» нулями — плана нет, а не «$0» на графике
+    assert any("'zara': [38.0, 40.0, 42.0, null, null]" in x for x in d["plan"])
+    assert "Math.max(lastI + 1, cur)" in tr.build_html(d)   # лесенка обрезается по последнему году с планом

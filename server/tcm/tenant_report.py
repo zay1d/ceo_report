@@ -130,7 +130,8 @@ def build_data(M: dict, sheets: dict) -> dict:
         for r in range(2, len(fz.v)):
             b = fz.cell(r, f_brand)
             if b and not b.lower().startswith(SKIP):
-                feas[b.upper()] = [num(fz.cell(r, c)) if c is not None else None for c in f_m2]
+                # 0 в «Физибилити» — плана на этот год нет (договор короче 5 лет), а не план $0
+                feas[b.upper()] = [(num(fz.cell(r, c)) or None) if c is not None else None for c in f_m2]
 
     is_storage = lambda b: bool(
         re.search(r"storage|склад", (b.get("category") or "") + (b.get("subcat") or ""), re.I)
@@ -295,15 +296,23 @@ function planRate(b, toYear){
   if (base == null) return null;
   return { base:base, rate:base, year:PLAN_YEAR, toYear:toYear || PLAN_YEAR };
 }
+/* лесенка — до последнего года с планом (договор бывает короче 5 лет), но не короче текущего года
+   договора; пропуск внутри срока — план держится на уровне прошлого года (иначе на графике «$0») */
 function planLadder(b, d){
   var p = PLAN_BY_ID[b.id];
   if (!p) return null;
-  var startY = contractStartYear(d), out = [], has = false;
-  for (var i = 0; i < PLAN_TERM; i++){
-    if (p[i] != null) has = true;
-    out.push({ y:i + 1, cal:startY + i, plan:(p[i] == null ? null : p[i]) });
+  var lastI = -1, first = null;
+  for (var i = 0; i < PLAN_TERM; i++) if (p[i] != null){ lastI = i; if (first == null) first = p[i]; }
+  if (lastI < 0) return null;
+  var cur = contractYear(d, new Date(Date.now() + 5 * 3600e3)) || 1;
+  var n = Math.min(PLAN_TERM, Math.max(lastI + 1, cur));
+  var startY = contractStartYear(d), out = [], prev = first;
+  for (var k = 0; k < n; k++){
+    var v = p[k] != null ? p[k] : prev;
+    prev = v;
+    out.push({ y:k + 1, cal:startY + k, plan:v });
   }
-  return has ? out : null;
+  return out;
 }
 function factLadder(d, curY){
   if (!d) return null;

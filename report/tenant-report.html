@@ -1180,7 +1180,19 @@ function T(x, y, s, o){
   return '<text x="' + x + '" y="' + y + '" font-size="' + fs(o.size || 11) + '" font-weight="' + (o.w || 400) +
     '" fill="' + (o.fill || C.ink) + '" text-anchor="' + (o.a || 'middle') + '"' +
     (o.rot ? ' transform="rotate(' + o.rot + ' ' + x + ' ' + y + ')"' : '') +
+    (o.halo ? ' stroke="#fff" stroke-width="' + o.halo + '" stroke-linejoin="round" paint-order="stroke"' : '') +
     ' font-family="Segoe UI, sans-serif">' + esc(s) + '</text>';
+}
+
+/* Ось X у всех графиков листа — на одной высоте от низа карточки, названия месяцев — на fs(3)
+   от низа: графики одного ряда стоят ровно. */
+function AXIS_B(){ return fs(16); }
+/* две подписи на высотах ya (выше) и yb (ниже): если ближе строки — раздвигаем симметрично */
+function apart(ya, yb){
+  var need = fs(10), d = yb - ya;
+  if (d >= need) return [ya, yb];
+  var m = (ya + yb) / 2;
+  return [m - need / 2, m + need / 2];
 }
 
 /* ============ 1. Столбцы по месяцам (+ опц. линия второй серии) ============ */
@@ -1190,11 +1202,20 @@ function barChart(host, o){
   var rows = o.rows, n = rows.length;
   var minW = n * (o.minSlot == null ? 26 : o.minSlot) + 40;
   if (w < minW) w = minW;                                  /* узкий экран → скролл внутри карточки */
-  var h = o.h || 240, padT = 26, padB = 34, padL = 6, padR = 6;
+  /* низ графика — как у соседей по ряду (скользящий год, сезонный профиль): ось на AXIS_B от низа,
+     названия месяцев на fs(3) от низа, — иначе оси в одном ряду стоят на разной высоте */
+  var h = o.h || 240, padT = 26, padB = AXIS_B(), padL = 6, padR = 6;
   var iw = w - padL - padR, slot = iw / n, bw = Math.min(slot * 0.72, 46);
   var vals = rows.map(function(r){ return r.val; }).filter(function(v){ return v != null; });
-  var max = Math.max.apply(null, vals) * 1.12 || 1;
+  var vmax = Math.max.apply(null, vals) || 1, max = vmax * 1.12;
   var y0 = h - padB, ih = y0 - padT;
+  /* значение подписываем у КАЖДОГО месяца: горизонтально, если подписи помещаются в ширину столбца,
+     иначе вертикально над столбцом (под них — запас по высоте); прореживаем, только если и так не влезает */
+  var lblW = Math.max.apply(null, vals.map(function(v){ return tw(o.fmt(v), 10.5, 600); }));
+  var vert = lblW + 5 > slot, vSize = 10;
+  var vW = Math.max.apply(null, vals.map(function(v){ return tw(o.fmt(v), vSize, 600); }));
+  if (vert && slot >= fs(vSize) + 2 && ih - vW - 8 > ih * 0.45) max = Math.max(max, vmax * ih / (ih - vW - 8));
+  else if (vert) vert = false;
   var s = '<svg width="' + w + '" height="' + h + '" xmlns="http://www.w3.org/2000/svg">';
 
   /* разделители календарных лет (на низком графике год не подписываем) */
@@ -1207,8 +1228,8 @@ function barChart(host, o){
   if (n && showYears) s += T(padL + 4, padT - 6, rows[0].y, { size:10.5, w:600, fill:C.mut, a:'start' });
 
   /* шаг подписей значений и месяцев */
-  var lblW = Math.max.apply(null, vals.map(function(v){ return tw(o.fmt(v), 10.5, 600); }));
-  var vStep = Math.max(1, Math.ceil((lblW + 5) / slot));
+  var vStep = vert ? 1 : Math.max(1, Math.ceil((lblW + 5) / slot));
+  var labTop = [];                                         /* верх подписи над каждым столбцом — для «тренд» */
   var mw = Math.max.apply(null, rows.map(function(r){ return tw(mShort(r), 10, 400); }));
   var mStep = Math.max(1, Math.ceil((mw + 6) / slot));
 
@@ -1217,16 +1238,23 @@ function barChart(host, o){
       var xg = padL + slot * i + (slot - bw) / 2;
       s += '<rect x="'+xg.toFixed(1)+'" y="'+(y0-18)+'" width="'+bw.toFixed(1)+'" height="18" fill="#FBFCFD" stroke="#DDE1E7" stroke-dasharray="2 2"/>';
       s += T(padL + slot * i + slot / 2, y0 - 24, 'нет', { size:9.5, fill:'#B9C0CA' });
-      if ((n - 1 - i) % mStep === 0) s += Tedge(padL + slot * i + slot / 2, y0 + 13, mShort(r), w, { size:10, fill:C.mut });
+      if ((n - 1 - i) % mStep === 0) s += Tedge(padL + slot * i + slot / 2, h - fs(3), mShort(r), w, { size:10, fill:C.mut });
+      labTop[i] = y0 - 30;
       return;
     }
     var x = padL + slot * i + (slot - bw) / 2, bh = Math.max(1, r.val / max * ih), y = y0 - bh;
     s += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+
          '" fill="'+(o.barColor || C.green)+'" fill-opacity="'+(o.op || 0.72)+'"/>';
-    if ((n - 1 - i) % vStep === 0)
-      s += T(padL + slot * i + slot / 2, y - 5, o.fmt(r.val), { size:10.5, w:600, fill:C.ink });
+    var lx = padL + slot * i + slot / 2;
+    if (vert){
+      s += T(lx + fs(vSize) * 0.35, y - 4, o.fmt(r.val), { size:vSize, w:600, fill:C.ink, a:'start', rot:-90, halo:2.5 });
+      labTop[i] = y - 4 - tw(o.fmt(r.val), vSize, 600);
+    } else if ((n - 1 - i) % vStep === 0){
+      s += T(lx, y - 5, o.fmt(r.val), { size:10.5, w:600, fill:C.ink, halo:2.5 });
+      labTop[i] = y - 5 - fs(12);
+    } else labTop[i] = y;
     if ((n - 1 - i) % mStep === 0)
-      s += Tedge(padL + slot * i + slot / 2, y0 + 13, mShort(r), w, { size:10, fill:C.mut });
+      s += Tedge(lx, h - fs(3), mShort(r), w, { size:10, fill:C.mut });
   });
 
   /* линия тренда: обычная регрессия по месяцам с данными */
@@ -1252,7 +1280,7 @@ function barChart(host, o){
           for (var tj = 0; tj < n && ok; tj++){
             var bx = padL + slot * tj + slot / 2;
             if (Math.abs(bx - tcx) > tlw / 2 + slot / 2) continue;
-            var rv = rows[tj].val, top = rv == null ? y0 - 30 : y0 - Math.max(1, rv / max * ih) - fs(17);
+            var top = labTop[tj] == null ? y0 - 30 : labTop[tj] - 3;
             if (top < ty + 3) ok = false;
           }
           if (ok) tpos = [Math.min(Math.max(tcx, padL + tlw / 2), w - padR - tlw / 2), ty];
@@ -1767,17 +1795,33 @@ function scatterChart(host, pts, o){
       }
     });
   });
+  /* плашка своей точки: справа/слева, над/под точкой — где закрывает меньше чужих точек и не выходит
+     за график (раньше всегда справа-сверху и прятала соседей под собой) */
+  var mePlace = null;
+  if (meP){
+    var mx0 = X(meP.x), my0 = Y(meP.y), two = h >= 110;
+    var ml1 = meP.name, ml2 = (o.xFmt || money)(meP.x) + ' · ' + (o.yFmt || num1)(meP.y);
+    var mbw = Math.max(tw(ml1, 10, 700), two ? tw(ml2, 9, 600) : 0) + 6, mbh = two ? fs(31) : fs(14);
+    var cands = [[1, -1], [-1, -1], [1, 1], [-1, 1]].map(function(c){
+      var bx = c[0] > 0 ? mx0 + 7 : mx0 - 7 - mbw;
+      var by = c[1] < 0 ? my0 - fs(18) : my0 + fs(6);
+      if (!two) by = c[1] < 0 ? my0 - fs(18) : my0 + fs(6);
+      var inb = bx >= padL + 1 && bx + mbw <= w - 2 && by >= padT - fs(4) && by + mbh <= h - padB + fs(2);
+      var cover = pts.filter(function(p){
+        if (p.me) return false;
+        var px = X(p.x), py = Y(p.y);
+        return px > bx - 3 && px < bx + mbw + 3 && py > by - 3 && py < by + mbh + 3;
+      }).length;
+      return { bx:bx, by:by, bw:mbw, bh:mbh, right:c[0] > 0, cost:cover + (inb ? 0 : 100) + (c[1] > 0 ? 0.5 : 0) };
+    });
+    cands.sort(function(a, b){ return a.cost - b.cost; });
+    mePlace = cands[0]; mePlace.l1 = ml1; mePlace.l2 = ml2;
+  }
   /* подписи соседей: мелким шрифтом, с проверкой на наложение — и с другими подписями, и с точками.
      Своя под-подкатегория подписывается первой, у неё приоритет на место. */
   if (h >= 130){
     var taken = [];                                /* занятые прямоугольники подписей */
-    var mePt = meP;
-    if (mePt){
-      var mw = Math.max(tw(mePt.name, 10, 700), tw('$00000 · 00%', 9, 600)) + 14;
-      var mr = X(mePt.x) < w - 90;
-      taken.push(mr ? [X(mePt.x) - 8, Y(mePt.y) - fs(19), X(mePt.x) + mw, Y(mePt.y) + fs(14)]
-                    : [X(mePt.x) - mw, Y(mePt.y) - fs(19), X(mePt.x) + 8, Y(mePt.y) + fs(14)]);
-    }
+    if (mePlace) taken.push([mePlace.bx - 2, mePlace.by - 2, mePlace.bx + mePlace.bw + 2, mePlace.by + mePlace.bh + 2]);
     if (outN && h >= 110){                         /* место под пометку «за шкалой» */
       var nw = tw(plural(outN, 'точка', 'точки', 'точек') + ' за шкалой — у края, со стрелкой', 8.5, 400);
       taken.push([w - padR - 4 - nw, 0, w - padR, padT]);
@@ -1794,6 +1838,9 @@ function scatterChart(host, pts, o){
       pts.forEach(function(p, k){
         if (p.me || (p.tone || 'cat') !== tone || !p.name) return;
         var nm = p.name.length > 11 ? p.name.slice(0, 10) + '…' : p.name;
+        /* точка прижата к краю шкалы — её место на графике условное, поэтому пишем значение */
+        if (p.y > y1) nm += ' ' + (o.yFmt || num1)(p.y);
+        else if (p.x > x1) nm += ' ' + (o.xFmt || money)(p.x);
         var tw2 = tw(nm, 8.5, 400), cx2 = X(p.x), cy2 = Y(p.y);
         var right = cx2 + 6 + tw2 < w - padR;
         var x1t = right ? cx2 + 5 : cx2 - 5 - tw2, x2t = x1t + tw2;
@@ -1801,7 +1848,7 @@ function scatterChart(host, pts, o){
         if (x1t < padL || !fits(rect) || !clear(rect, k)) return;
         taken.push(rect);
         s += T(right ? cx2 + 5 : cx2 - 5, cy2 + fs(3), nm,
-               { size:8.5, fill:tone === 'sub2' ? '#4A5568' : '#8C9BB4', a:right ? 'start' : 'end' });
+               { size:8.5, fill:tone === 'sub2' ? '#4A5568' : '#8C9BB4', a:right ? 'start' : 'end', halo:2 });
       });
     });
   }
@@ -1820,15 +1867,11 @@ function scatterChart(host, pts, o){
          '" r="6" fill="url(#' + sid + ')" stroke="#fff" stroke-width="1.5"/>' +
          '<circle cx="'+(X(p.x)-2).toFixed(1)+'" cy="'+(Y(p.y)-2).toFixed(1)+'" r="1.6" fill="#fff" fill-opacity="0.7"/></g>';
     /* подпись своей точки — на белой плашке, чтобы соседние точки её не перекрывали */
-    var lx = X(p.x), ly = Y(p.y);
-    var right = lx < w - 90, ax = right ? lx + 10 : lx - 10, an = right ? 'start' : 'end';
-    var l1 = p.name, l2 = (o.xFmt || money)(p.x) + ' · ' + (o.yFmt || num1)(p.y);
-    var bw = Math.max(tw(l1, 10, 700), h >= 110 ? tw(l2, 9, 600) : 0) + 6;
-    var bx = right ? ax - 3 : ax - bw + 3;
-    s += '<rect x="'+bx.toFixed(1)+'" y="'+(ly - fs(18)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+
-         (h >= 110 ? fs(31) : fs(14)).toFixed(1)+'" rx="3" fill="#fff" fill-opacity="0.85"/>';
-    s += T(ax, ly - fs(8), l1, { size:10, w:700, fill:zc[2], a:an });
-    if (h >= 110) s += T(ax, ly + fs(10), l2, { size:9, w:600, fill:C.ink, a:an });
+    var mp = mePlace, an = mp.right ? 'start' : 'end', ax = mp.right ? mp.bx + 3 : mp.bx + mp.bw - 3;
+    s += '<rect x="'+mp.bx.toFixed(1)+'" y="'+mp.by.toFixed(1)+'" width="'+mp.bw.toFixed(1)+'" height="'+
+         mp.bh.toFixed(1)+'" rx="3" fill="#fff" fill-opacity="0.9"/>';
+    s += T(ax, mp.by + fs(10), mp.l1, { size:10, w:700, fill:zc[2], a:an });
+    if (h >= 110) s += T(ax, mp.by + fs(27), mp.l2, { size:9, w:600, fill:C.ink, a:an });
   });
   /* оси */
   s += '<line x1="'+padL+'" y1="'+(h-padB)+'" x2="'+(w-padR)+'" y2="'+(h-padB)+'" stroke="#B5BAC2"/>';
@@ -1922,7 +1965,7 @@ function matChart(host, rows, vals, o){
   var bandW = o.band ? Math.max(tw(fmt(o.band[0]), 9, 600), tw(fmt(o.band[1]), 9, 600)) + fs(6) : 0;
   var benchW = o.bench ? Math.max(tw(fmt(o.bench.lo), 9, 600), tw(fmt(o.bench.hi), 9, 600)) + fs(6) : 0;
   edge = Math.max(edge, bandW, benchW);
-  var padT = fs(15), padB = fs(14), padL = edge, padR = edge;
+  var padT = fs(15), padB = AXIS_B(), padL = edge, padR = edge;
   var y0 = h - padB, ih = y0 - padT, iw = w - padL - padR, step = n > 1 ? iw / (n - 1) : 0;
   var pad = (mx - mn) * 0.18 || mx * 0.1 || 1;
   var hi = mx + pad, lo = Math.max(0, mn - pad);
@@ -1971,19 +2014,22 @@ function matChart(host, rows, vals, o){
     var by1 = Y(bHi), by2 = Y(bLo);
     s += '<rect x="' + padL.toFixed(1) + '" y="' + by1.toFixed(1) + '" width="' + iw.toFixed(1) +
          '" height="' + Math.max(1, by2 - by1).toFixed(1) + '" fill="#2FA36B" fill-opacity="0.10"/>';
-    s += T(padL - fs(3), by1 + fs(3), fmt(bHi), { size:9, w:600, fill:'#3E8C63', a:'end' });
-    s += T(padL - fs(3), by2 + fs(3), fmt(bLo), { size:9, w:600, fill:'#3E8C63', a:'end' });
+    var bsp = apart(by1, by2);
+    s += T(padL - fs(3), bsp[0] + fs(3), fmt(bHi), { size:9, w:600, fill:'#3E8C63', a:'end' });
+    s += T(padL - fs(3), bsp[1] + fs(3), fmt(bLo), { size:9, w:600, fill:'#3E8C63', a:'end' });
   }
   if (o.bench){                                   /* мировой бенчмарк подкатегории — заливка + пунктир */
     var yHi = Y(Math.max(o.bench.lo, o.bench.hi)), yLo = Y(Math.min(o.bench.lo, o.bench.hi));
     s += '<rect x="' + padL.toFixed(1) + '" y="' + yHi.toFixed(1) + '" width="' + iw.toFixed(1) +
          '" height="' + Math.max(1, yLo - yHi).toFixed(1) + '" fill="#F0B429" fill-opacity="0.16"/>';
-    [o.bench.hi, o.bench.lo].forEach(function(bv){
-      var y = Y(bv);
+    var bTop = Math.max(o.bench.lo, o.bench.hi), bBot = Math.min(o.bench.lo, o.bench.hi);
+    var bnp = apart(Y(bTop), Y(bBot));
+    [[bTop, bnp[0]], [bBot, bnp[1]]].forEach(function(g){
+      var y = Y(g[0]);
       s += '<line x1="' + padL.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + (w - padR).toFixed(1) +
            '" y2="' + y.toFixed(1) + '" stroke="' + C.navy + '" stroke-width="0.9" stroke-dasharray="5 3" ' +
            'stroke-opacity="0.65"/>';
-      s += T(w - padR + fs(3), y + fs(3), fmt(bv), { size:9, w:600, fill:C.navy, a:'start' });
+      s += T(w - padR + fs(3), g[1] + fs(3), fmt(g[0]), { size:9, w:600, fill:C.navy, a:'start' });
     });
   }
   var line = '', open = false;
@@ -2068,20 +2114,24 @@ function matChart(host, rows, vals, o){
   });
   s += labs;
   var everyX = Math.max(1, Math.ceil(n * fs(44) / iw));
+  var mLabW = 0;
+  rr.forEach(function(r){ mLabW = Math.max(mLabW, tw(MON[r.m - 1] + ' ' + String(r.y).slice(2), 10, 400)); });
   rr.forEach(function(r, i){
-    if (i !== n - 1 && (i % everyX !== 0 || n - 1 - i < everyX * 0.6)) return;
+    if (i !== n - 1 && (i % everyX !== 0 || X(n - 1) - X(i) < mLabW + fs(6))) return;
     s += T(X(i), h - fs(3), MON[r.m - 1] + ' ' + String(r.y).slice(2), { size:10, fill:C.mut });
   });
   host.innerHTML = s + '</svg>';
 }
 
 /* ============ 15. Ставка: план физибилити и факт по годам договора ============ */
+function RATE_NOTE(){ return fs(12); }   /* строка примечания под подписями лет */
 /* plan: [{y, plan}], fact: [{y, fact}], cur — текущий год договора */
 function rateChart(host, plan, fact, cur, o){
   o = o || {};
   var w = Math.max(host.clientWidth || 300, o.hardMin || 200);
   var h = host.clientHeight || o.h || 150;
-  var n = plan.length, padT = fs(16), padB = fs(30), padL = 4, padR = 4;
+  /* под осью — подписи лет (как месяцы у соседних графиков) и строка примечания */
+  var n = plan.length, padT = fs(16), padB = AXIS_B() + RATE_NOTE(), padL = 4, padR = 4;
   var y0 = h - padB, ih = y0 - padT, iw = w - padL - padR, slot = iw / n;
   var vals = plan.map(function(p){ return p.plan; }).concat(fact.map(function(f){ return f.fact; }));
   var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals);
@@ -2162,7 +2212,7 @@ function rateChart(host, plan, fact, cur, o){
   s += '<line x1="' + padL + '" y1="' + y0 + '" x2="' + (w - padR) + '" y2="' + y0 + '" stroke="#B5BAC2"/>';
   plan.forEach(function(p, i){
     var lab = i === ci ? p.y + '-й · сейчас' : p.y + '-й';
-    s += T(cx(i), h - fs(14), lab, { size:10, w:i === ci ? 600 : 400, fill:i === ci ? C.navy : C.mut });
+    s += T(cx(i), h - RATE_NOTE() - fs(3), lab, { size:10, w:i === ci ? 600 : 400, fill:i === ci ? C.navy : C.mut });
   });
   if (o.note) s += T(padL, h - fs(2), o.note, { size:9, fill:C.mut, a:'start' });
   host.innerHTML = s + '</svg>';
@@ -3156,7 +3206,7 @@ function finalCtx(b, M){
     if (X.T.monthsToDecision <= 6)
       cand.push({ zone:'term', w:45,
         t:'Сроки: решение до ' + X.T.deadlineTxt + ' — начать переговоры сейчас.' });
-    if (X.plan && X.curYear < PLAN_TERM && !rateLow && !ocrAlarm)
+    if (X.plan && X.curYear < PLAN_TERM && X.planYears[X.curYear] && !rateLow && !ocrAlarm)
       cand.push({ zone:'plan', w:30,
         t:'План: со следующего года модель предполагает $' + Math.round(X.planYears[X.curYear].plan) + '/м².' });
     cand.push({ zone:'watch', w:10, t:'Мониторинг: пересмотреть через квартал по свежей выгрузке.' });
@@ -3378,8 +3428,16 @@ function repFDraw(b, M){
       yFmt:function(v){ return Math.round(v) + '%'; } });
 
     /* по требованию: зона графика ставки — ровно той же высоты, что «OCR по месяцам» */
+    /* ось и подписи лет — на одной линии с осью и месяцами «OCR по месяцам»: карточки начинаются
+       на разной высоте (заголовки разной длины), поэтому выравниваем по низу, а не копируем высоту */
     var occEl = document.getElementById('f-occ'), rateEl = document.getElementById('f-rate');
-    if (rateEl && occEl && occEl.clientHeight > 40) rateEl.style.height = occEl.clientHeight + 'px';
+    if (rateEl && occEl && occEl.clientHeight > 40){
+      var ro = occEl.getBoundingClientRect(), rr = rateEl.getBoundingClientRect();
+      var kz = ro.height / occEl.clientHeight || 1;            /* лист может быть масштабирован */
+      var hh = occEl.clientHeight + (ro.top - rr.top) / kz + RATE_NOTE();
+      var room = rateEl.parentNode.clientHeight;
+      rateEl.style.height = Math.round(Math.min(hh, room || hh)) + 'px';
+    }
     if (X.planYears && X.factYears)
       rateChart(rateEl, X.planYears, X.factYears, X.curYear,
         { h:rateEl.clientHeight, hardMin:200,
