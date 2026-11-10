@@ -1,0 +1,395 @@
+/* Отчёт по товарообороту арендатора — витрина форматов. TCM / Hyper Partners */
+:root{
+  --navy:#1B2A4A; --copper:#C0703A; --ink:#2D2D2D; --mut:#6B7280;
+  --line:#E5E7EB; --bg:#F6F7F9; --ok:#2E7D52; --warn:#C9862B; --bad:#C0392B;
+  --green:#4E9B6F;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{scrollbar-gutter:stable}
+body{
+  background:var(--bg); color:var(--ink);
+  font:13px/1.45 'Segoe UI', Inter, -apple-system, sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{padding:14px 18px 40px}
+
+/* ---------- шапка витрины ---------- */
+.top{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:12px 16px;margin-bottom:12px}
+.top h1{margin:0;font-size:19px;color:var(--navy);font-weight:700;letter-spacing:.1px}
+.top .sub{margin-top:2px;font-size:11.5px;color:var(--mut)}
+.top img{height:52px;margin-left:auto;display:block}
+
+.panel{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end;background:#fff;
+  border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin-bottom:12px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);font-weight:600}
+.fld select{height:32px;min-width:230px;border:1px solid var(--line);border-radius:6px;padding:0 8px;
+  font:13px 'Segoe UI',sans-serif;color:var(--ink);background:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 13px;cursor:pointer;
+  font:12.5px 'Segoe UI',sans-serif;color:var(--navy);white-space:nowrap}
+.tab:hover{border-color:#c9cfd8}
+.tab.act{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.tab[data-v="A"],.tab[data-v="B"],.tab[data-v="Cv"]{border-color:#E0C3A8}
+.tab[data-v="F"]{border-color:var(--copper);color:var(--copper);font-weight:700}
+.tab[data-v="F"].act{background:var(--copper);border-color:var(--copper);color:#fff}
+table.lad td{font-size:10.5px;padding:0.8px 4px}
+table.lad td.nm{max-width:none;white-space:nowrap}
+table.lad th{font-size:10px;padding:2px 3px}
+.tab[data-v="A"]{color:var(--copper);font-weight:600}
+.tab[data-v="A"].act,.tab[data-v="B"].act,.tab[data-v="Cv"].act{background:var(--copper);border-color:var(--copper);color:#fff}
+.btn{align-self:flex-end;height:32px;border:1px solid var(--copper);background:#fff;color:var(--copper);
+  border-radius:6px;padding:0 14px;font:12.5px 'Segoe UI',sans-serif;font-weight:600;cursor:pointer}
+.btn:hover{background:#FBF4EC}
+.hint{font-size:11.5px;color:var(--mut);margin-left:auto;max-width:430px;text-align:right;line-height:1.35}
+
+/* ---------- карточки ---------- */
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px;min-width:0}
+.card h2{margin:0 0 2px;font-size:15px;color:var(--navy);font-weight:700}
+.card .cap{font-size:11.5px;color:var(--mut);margin-bottom:10px}
+.card h2 .u{font-weight:400;color:var(--mut);font-size:12.5px}
+.chead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.chead h2{margin:0}
+.lgd{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:11px;color:var(--mut);flex-wrap:wrap}
+.lgd i{display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2.wide{grid-template-columns:1.45fr 1fr}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* ---------- шапка отчёта ---------- */
+.rep-head{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.rep-head .t{font-size:21px;font-weight:700;color:var(--navy)}
+.rep-head .m{font-size:11.5px;color:var(--mut);margin-top:3px}
+.rep-head .m b{color:var(--ink);font-weight:600}
+
+/* ---------- KPI ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;position:relative;overflow:hidden}
+.kpi:before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--navy)}
+.kpi.acc:before{background:var(--copper)}
+.kpi .l{font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.kpi .v{font-size:20px;font-weight:700;color:var(--navy);margin-top:3px;letter-spacing:-.2px}
+.kpi.acc .v{color:var(--copper)}
+.kpi .d{font-size:11px;color:var(--mut);margin-top:2px}
+.kpi .d b{font-weight:700}
+.up{color:var(--ok)} .dn{color:var(--bad)} .fl{color:var(--mut)}
+
+/* ---------- таблицы ---------- */
+table{width:100%;border-collapse:collapse}
+th{background:var(--navy);color:#fff;font-weight:600;font-size:11px;padding:7px 8px;text-align:center;
+  letter-spacing:.2px;white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:5px 8px;font-size:12.5px;text-align:center;border-bottom:1px solid #EEF0F3;white-space:nowrap}
+td:first-child{text-align:left}
+tbody tr:nth-child(even){background:#FAFBFC}
+tbody tr:hover{background:#F2F5F9}
+tr.tot td{font-weight:700;background:#F1F3F6;border-top:2px solid var(--navy);border-bottom:none}
+tr.yr td{background:#EDF0F5;font-weight:600;color:var(--navy)}
+.num{font-variant-numeric:tabular-nums}
+.src{font-size:10.5px;color:#9AA1AC;margin-top:8px}
+.scroll{overflow-x:auto;min-width:0}
+
+/* ---------- прочее ---------- */
+.chart-wrap{min-width:0;overflow-x:auto;overflow-y:hidden}
+.note{background:#F8F0E4;border-left:3px solid var(--copper);border-radius:0 6px 6px 0;padding:9px 12px;
+  font-size:12.5px;margin-bottom:12px;color:#5a4630}
+.note b{color:var(--copper)}
+.pill{display:inline-block;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:600}
+.pill.ok{background:#E9F3EE;color:var(--ok)} .pill.bad{background:#F7E9E7;color:var(--bad)}
+.pill.warn{background:#F8F0E4;color:var(--warn)} .pill.n{background:#EEF0F3;color:var(--mut)}
+.bars{display:flex;flex-direction:column;gap:5px}
+.brow{display:grid;grid-template-columns:118px 1fr 62px;gap:8px;align-items:center;font-size:12px}
+.btrack{height:14px;background:#F0F2F5;border-radius:3px;overflow:hidden}
+.bfill{height:100%;background:var(--green);border-radius:3px}
+.brow b{text-align:right;font-variant-numeric:tabular-nums}
+.sum{font-size:12.5px;line-height:1.6;color:var(--ink);margin:0;padding-left:18px}
+.sum li{margin-bottom:3px}
+.avail{font-size:11.5px;color:var(--mut);line-height:1.6}
+.avail b{color:var(--navy)}
+
+
+/* ---------- лист A4 (вариант «одна страница») ---------- */
+.sheet-wrap{overflow:hidden;margin-bottom:12px}
+.sheet{width:267mm;height:184mm;background:#fff;border:1px solid var(--line);border-radius:6px;
+  padding:6mm 7mm;display:flex;flex-direction:column;gap:7px;transform-origin:top left;
+  box-shadow:0 1px 4px rgba(27,42,74,.06)}
+.sh-head{display:flex;align-items:flex-start;gap:10px;border-bottom:2px solid var(--navy);padding-bottom:4px}
+.sh-t{font-size:17px;font-weight:700;color:var(--navy);line-height:1.12}
+.sh-m{font-size:10.5px;color:var(--mut);margin-top:3px}
+.sh-logo{height:34px;margin-left:auto;flex:none}
+/* реквизиты листа — пилюлями справа от названия, а не строкой мелкого текста */
+.sh-id{flex:0 1 auto;max-width:32%;min-width:120px}
+.sh-k{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);font-weight:600;line-height:1.2}
+.sh-pills{display:flex;flex-wrap:wrap;align-content:flex-start;gap:3px 4px;flex:1 1 auto;min-width:0;padding-top:1px}
+.pill{display:inline-block;font-size:10px;line-height:1.2;padding:1.5px 7px;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:#fff;white-space:nowrap}
+.pill.seg{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600;white-space:normal}
+.pill.acc{background:#FBF2EC;border-color:var(--copper);color:var(--copper);font-weight:600}
+.pill.warn{background:#FDF3F3;border-color:#C0563A;color:#C0563A;font-weight:600}
+.pill.ok{background:#EDF7F1;border-color:#2E7D5B;color:#2E7D5B;font-weight:600}
+.bdg{display:inline-block;padding:0 5px;border-radius:3px;font-size:9.5px;font-weight:700}
+.bdg.green{background:#E1F0E8;color:#1F6B4A}
+.bdg.amber{background:#FCF1DA;color:#8A5B08}
+.bdg.red{background:#FBE9E7;color:#A8321C}
+.pill.gh{border-style:dashed;opacity:.75}
+.parr{font-style:normal;color:var(--mut);font-size:10px;line-height:1;align-self:center}
+.pgap{display:inline-block;width:14px;height:1px}
+.yt .part{color:var(--copper)}
+.sh-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.sk{border:1px solid var(--line);border-radius:6px;padding:4px 8px;position:relative;overflow:hidden;min-width:0}
+.sk.up .v{color:var(--ok)}
+.sk.down .v{color:var(--bad)}
+.sk .l{font-size:9px;letter-spacing:.3px;text-transform:uppercase;color:var(--mut);font-weight:600}
+.sk .v{font-size:16px;font-weight:700;color:var(--navy);margin-top:1px;letter-spacing:-.2px}
+.sk.acc .v{color:var(--copper)}
+.sk .d{font-size:9.5px;color:var(--mut);margin-top:1px;line-height:1.2;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sh-body{display:grid;grid-template-columns:1.5fr 1fr;grid-template-rows:1fr 1fr auto;gap:5px;flex:1;min-height:0}
+.sh-l,.sh-r{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sh-body > .sh-card{display:flex;flex-direction:column;min-height:0}
+.sh-card{border:1px solid var(--line);border-radius:6px;padding:3px 6px;min-width:0}
+.sh-card.grow{flex:1;display:flex;flex-direction:column;min-height:0}
+/* график во всю высоту карточки: содержимое вынуто из потока, поэтому svg
+   не распирает колонку — он всегда рисуется ровно по доступной высоте */
+.chart-wrap.fill{flex:1 1 auto;min-height:56px;position:relative;overflow:hidden}
+.chart-wrap.fill > div{position:absolute;left:0;right:0;top:0;bottom:0}
+.sh-h2{font-size:10.5px;font-weight:700;color:var(--navy);margin-bottom:2px;display:flex;align-items:baseline;gap:5px;line-height:1.2}
+.sh-h2 span{font-weight:400;font-size:9px;color:var(--mut);line-height:1.15}
+.lgd{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:3px;vertical-align:baseline}
+.sh-lg{margin-left:auto;font-size:9.5px;color:var(--mut);font-weight:400}
+.sh-lg i{display:inline-block;width:10px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+table.mtx{width:100%;border-collapse:collapse}
+.mtx thead th{background:var(--navy);color:#fff;font-size:10px;font-weight:600;padding:4px 2px;text-align:center;letter-spacing:0}
+.mtx th.ry{background:none;color:var(--navy);font-size:10.5px;font-weight:600;text-align:left;padding:3.5px 5px 3.5px 2px}
+.mtx td{padding:3.5px 2px;font-size:10.5px;text-align:center;border:none;font-variant-numeric:tabular-nums;color:var(--ink)}
+.mtx tbody tr:nth-child(even){background:none}
+.mtx td.e{color:#C9CFD8}
+.mtx td.ag{font-weight:700;color:var(--navy);background:#EEF1F5}
+/* рекорд и провал в матрице: на экране рамка пульсирует, на печати — статична */
+.mtx td.best,.mtx td.worst{position:relative;font-weight:700;color:var(--navy)}
+.mtx td.best{box-shadow:inset 0 0 0 2px #2E7D5B;animation:tcmPulseUp 1.9s ease-in-out infinite}
+.mtx td.worst{box-shadow:inset 0 0 0 2px #C0563A;animation:tcmPulseDn 1.9s ease-in-out infinite}
+@keyframes tcmPulseUp{0%,100%{box-shadow:inset 0 0 0 2px rgba(46,125,91,1)}50%{box-shadow:inset 0 0 0 4px rgba(46,125,91,.35)}}
+@keyframes tcmPulseDn{0%,100%{box-shadow:inset 0 0 0 2px rgba(192,86,58,1)}50%{box-shadow:inset 0 0 0 4px rgba(192,86,58,.35)}}
+/* скользящий год: две сравниваемые точки раздуваются и возвращаются */
+g.matdot{animation:tcmSwell 1.9s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+g.matdot.now{animation-delay:.2s}
+@keyframes tcmSwell{0%,100%{transform:scale(1)}50%{transform:scale(1.75)}}
+/* OCR по месяцам: пульсация слабее (Олег, 09.11) — точек много, крупная мешает читать */
+#f-occ g.matdot,.sheet.f-1 g.matdot{animation-name:tcmSwellS}   /* лист 1 — так же, как OCR (Олег, 09.11) */
+@keyframes tcmSwellS{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+@media (prefers-reduced-motion:reduce){g.matdot{animation:none}}
+@media (prefers-reduced-motion:reduce){.mtx td.best,.mtx td.worst{animation:none}}
+@media print{
+  .mtx td.best,.mtx td.worst{animation:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  g.matdot{animation:none}
+  .mtx td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+table.yt{width:100%;border-collapse:collapse}
+.yt th{background:var(--navy);color:#fff;font-size:10px;font-weight:600;padding:4px 5px;text-align:center}
+.yt th:first-child{text-align:left}
+.yt td{padding:3.5px 5px;font-size:10.5px;text-align:center;border-bottom:1px solid #EEF0F3;white-space:nowrap}
+.yt td:first-child{text-align:left;font-weight:600;color:var(--navy)}
+.yt tbody tr:last-child td{border-bottom:none}
+.yt .dlt{display:inline-block;font-size:9px;line-height:1.15;margin-left:6px;font-weight:400;white-space:nowrap}
+.yt .dlt b{font-weight:600}
+.mn{color:#9AA1AC;font-size:9px;font-weight:400}
+.mn2{font-size:9px;color:#9AA1AC;margin-top:4px}
+.sh-sum{margin:0;padding-left:15px;font-size:10.5px;line-height:1.5;color:var(--ink)}
+.sh-sum li{margin-bottom:3px}
+.sh-sum b{color:var(--navy)}
+.sh-foot{font-size:9px;color:#9AA1AC;border-top:1px solid var(--line);padding-top:5px}
+.sheet-hint{display:none;font-size:11.5px;color:var(--mut);margin:-4px 0 12px}
+
+
+/* ---------- лист «решение по арендатору» ---------- */
+.sheet.ceo{gap:6px}
+.rec{display:flex;gap:10px;border:1px solid #E4CDB6;background:#FBF4EC;border-left:4px solid var(--copper);
+  border-radius:0 6px 6px 0;padding:7px 10px}
+.rec-l{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--copper);
+  writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;flex:none}
+.rec-b{font-size:11.5px;line-height:1.45;color:#4a3728}
+.rec-b b{color:var(--copper)}
+.rec-ask{margin-top:3px;font-size:10.5px;color:var(--navy);font-weight:600}
+.rec-ask b{color:var(--navy)}
+.ceo-body{display:grid;grid-template-columns:1fr 1fr 1.06fr;gap:6px;flex:1;min-height:0}
+/* лист 2 финального отчёта: две колонки, левая (OCR) на ~70% шире прежней */
+.f-2 .ceo-body{grid-template-columns:1.7fr 1.36fr}
+/* ряд карточек внутри колонки («Ставка | Доход ТРЦ»): забирает свободную высоту, карточки одной высоты */
+.cl-row{display:flex;gap:4px;flex:1 1 auto;min-height:0}
+.cl-row > .sh-card{flex:1 1 0;min-width:0}
+.cl-row > .sh-card.wide{flex-grow:1}   /* «Ставка» и «Доход ТРЦ» поровну: подписям столбцов нужна ширина */
+/* при крупном шрифте ряд не сплющивается: лучше включится компактный режим листа */
+.cl-row .chart-wrap.fill{min-height:96px}
+/* «Ключевые цифры» первым блоком карточки — без разделительной линии сверху */
+.sh-h2 + .sh-sum.kf{margin-top:0;border-top:none;padding-top:0}
+/* колонка листа 2: каждый график и таблица — в своей карточке */
+.ceo-body > .cl{display:flex;flex-direction:column;gap:4px;min-width:0;min-height:0}
+/* фиксированные карточки не сжимаются — иначе grow-сосед выдавливает их контент */
+.ceo-body > .cl > .sh-card:not(.grow),.sh-l > .sh-card:not(.grow),.sh-r > .sh-card:not(.grow){flex-shrink:0}
+.ceo-body .sh-card{display:flex;flex-direction:column;min-height:0}
+.sh-h2.mt{margin-top:7px}
+table.pt{width:100%;border-collapse:collapse}
+.pt th{background:none;color:var(--mut);font-size:10px;font-weight:600;padding:1px 3px;text-align:right;border-bottom:1px solid var(--line)}
+.pt th:first-child{text-align:left}
+.pt td{padding:2.5px 3px;font-size:10.5px;text-align:right;border-bottom:1px solid #F2F4F7;white-space:nowrap}
+.pt td:first-child{text-align:left;color:var(--mut)}
+.pt tr.sum td{font-weight:700;color:var(--navy);border-top:1px solid var(--navy);border-bottom:none}
+.pt tr.scen td{padding-top:6px;font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--mut);border-bottom:1px dashed var(--line);text-align:left}
+.pt tr.alt td{color:var(--mut);font-style:italic;border-bottom:none}
+.pt tr.alt td:last-child{font-weight:700;font-style:normal;color:var(--copper)}
+.pt.tight td{padding:1.5px 3px;font-size:10.5px}
+.pt.tight td:nth-child(3){text-align:left;color:var(--mut);padding-left:10px}
+.occ{margin-top:7px}
+.occ-t{font-size:10px;color:var(--mut);margin-bottom:2px}
+table.st{width:100%;border-collapse:collapse}
+.st th{background:var(--navy);color:#fff;font-size:10px;font-weight:600;padding:3px 4px;text-align:right}
+.st th:nth-child(2){text-align:left}
+.st td{padding:4px;font-size:10.5px;text-align:right;border-bottom:1px solid #EEF0F3;vertical-align:top}
+.st td.k{width:14px;font-weight:700;color:var(--navy);text-align:center}
+.st td.nm{text-align:left;white-space:normal;line-height:1.25}
+.st tr.win{background:#F1F7F3}
+.st tr.win td.k{color:var(--ok)}
+.sh-sum.tight{font-size:10px;line-height:1.4;padding-left:14px}
+.sh-sum.tight li{margin-bottom:2px}
+.sh-sum.kf{margin-top:4px;border-top:1px solid var(--line);padding-top:4px}
+.sh-sum.kf li{margin-bottom:0;line-height:1.24}
+.sh-sum.kf{list-style:none;padding-left:2px}
+.sh-sum.kf li{padding-left:13px;position:relative}
+.sh-sum.kf li:before{content:'';position:absolute;left:0;top:5px;width:7px;height:7px;border-radius:50%}
+.sh-sum.kf li.ok:before{background:#2E7D5B}
+.sh-sum.kf li.bad:before{background:#C0563A}
+.sumline{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:3px 12px;margin-top:4px;padding:4px 8px 5px}
+.sumline .sl-wide{grid-column:1 / -1;border-top:1px solid var(--line);padding-top:4px}
+.sl-h{font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:var(--copper);font-weight:700;margin-bottom:1px}
+.sl-t{font-size:10.5px;line-height:1.22;color:var(--ink)}
+.sl-h{margin-top:3px}
+ol.recs{margin:1px 0 0;padding-left:15px;font-size:10.5px;line-height:1.24;color:var(--ink)}
+ol.recs li{margin-bottom:1px}
+ol.recs li::marker{color:var(--copper);font-weight:700}
+/* легенды графиков (Олег, 09.11): значок + подпись, кегль 10 как у подписей осей */
+.clg{display:flex;flex-wrap:wrap;gap:1px 12px;font-size:10px;color:var(--ink);margin:0 0 3px;line-height:1.3;flex:none}
+.clg span{display:inline-flex;align-items:center;white-space:nowrap}
+.sh-h2 .clg{margin:0 0 0 auto;padding-left:10px;justify-content:flex-end;flex:0 1 auto;font-weight:400;align-self:flex-start}   /* легенда — правый верхний угол */
+.clg .sw{display:inline-block;margin-right:5px;flex:none}
+.clg .sw.box{width:10px;height:10px;border-radius:2px}
+.clg .sw.dot{width:8px;height:8px;border-radius:50%}
+.clg .sw.line{width:16px;height:0;border-top:2px solid}
+.clg .sw.dash{width:16px;height:0;border-top:2px dashed}
+.clg .sw.shelf{width:14px;height:0;border-top:3px solid;border-radius:2px}
+.clg .sw.arrow{width:16px;height:0;border-top:1px solid;position:relative}
+.clg .sw.arrow:before,.clg .sw.arrow:after{content:"";position:absolute;top:-4px;border:3px solid transparent}
+.clg .sw.arrow:before{left:-2px;border-right:5px solid #9AA3AF;border-left:0}
+.clg .sw.arrow:after{right:-2px;border-left:5px solid #9AA3AF;border-right:0}
+/* «Условия и замена» (лист 2): текст крупнее и с воздухом (Олег, 09.11) */
+.cond .sh-sum.kf{font-size:11px}
+.cond .sh-sum.kf li{line-height:1.32;margin-bottom:2px}
+.cond .sl-h{font-size:9.5px;margin-top:9px;margin-bottom:3px}
+.cond .sl-t{font-size:11.5px;line-height:1.36}
+.cond ol.recs{font-size:11.5px;line-height:1.36}
+.cond ol.recs li{margin-bottom:3px}
+
+
+/* «во всю ширину»: лист тянется по окну, при печати всё равно A4 */
+.fluid .sheet{width:auto;height:auto;min-height:0;transform:none!important;max-width:none}
+.fluid .sheet-wrap{overflow:visible!important;height:auto!important}
+.fluid .sh-body,.fluid .ceo-body{min-height:0}
+.fluid .sheet + .sheet{margin-top:0}
+@media (max-width:1150px){
+  .fluid .ceo-body{grid-template-columns:1fr}
+  .fluid .cl-row{flex-direction:column}
+  .fluid .sh-body,.fluid .sh-body.r7{grid-template-columns:1fr}
+  /* одна колонка: высота карточек auto, поэтому растянутым графикам нужен свой минимум */
+  .fluid .chart-wrap.fill{min-height:150px}
+}
+
+/* компактный режим листа — включается при крупном шрифте */
+.sheet.dense{gap:5px;padding:5mm 6mm}
+.sheet.dense .sh-card{padding:5px 7px}
+.sheet.dense .sh-body,.sheet.dense .ceo-body{gap:5px}
+.sheet.dense .sh-l,.sheet.dense .sh-r{gap:5px}
+.sheet.dense .sh-kpis{gap:5px}
+.sheet.dense .sh-h2{margin-bottom:3px}
+.sheet.dense table.yt + .mn2{display:none}
+.sheet.dense .pt td,.sheet.dense .yt td{padding:2px 4px}
+
+/* ---------- двухстраничные отчёты ---------- */
+.sh-kpis.six{grid-template-columns:repeat(6,1fr)}
+.sh-body.r7{grid-template-columns:1.25fr 1fr}
+.sh-body.r7b{grid-template-columns:1.15fr 1fr}
+.sh-body.r8{grid-template-columns:1.2fr 1fr}
+.sh-body.r8b{grid-template-columns:1fr 1.12fr}
+.sh-body.r9b{grid-template-columns:1.08fr 1fr}
+.sheet-wrap + .sheet-wrap{margin-top:2px}
+.lbl-s{font-size:9.5px;color:var(--mut);margin:2px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.tile{border:1px solid var(--line);border-radius:5px;padding:3px 7px 1px;min-width:0}
+.tl{font-size:9.5px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl span{font-weight:400;color:var(--mut);font-size:8.5px}
+table.dt{width:100%;border-collapse:collapse}
+.dt th{background:var(--navy);color:#fff;font-size:8.5px;font-weight:600;padding:3px 2px;text-align:center}
+.dt th.rl{text-align:left;padding-left:6px}
+.dt td{padding:2px 2px;font-size:9px;text-align:center;border-bottom:1px solid #F2F4F7;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.dt td.rl{text-align:left;font-weight:600;color:var(--navy);padding-left:6px}
+.dt tbody tr:nth-child(even){background:#FAFBFC}
+.dt .e{color:#C9CFD8}
+.st td.nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+
+@media (max-width:900px){
+  .sheet-hint{display:block}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .grid2,.grid2.wide,.grid3{grid-template-columns:1fr}
+  .top img{height:40px} .top h1{font-size:16px}
+  .hint{display:none} .fld select{min-width:0;width:100%}
+  .wrap{padding:10px 10px 30px}
+}
+@media print{
+  html{scrollbar-gutter:auto}
+  .fluid .sheet{width:267mm;height:184mm}
+  body{background:#fff}
+  .panel,.top img,.hint,.btn{display:none!important}
+  .card,.kpi,.rep-head{break-inside:avoid;border-color:#ccc}
+  .wrap{padding:0}
+  /* лист печатается 1:1, ровно одна страница */
+  body.mode-p1 .top{display:none!important}
+  .sheet-wrap{overflow:visible!important;height:auto!important;margin:0}
+  .sheet-hint{display:none!important}
+  .sheet{transform:none!important;border:none;border-radius:0;box-shadow:none;
+    width:267mm;height:184mm}
+  .sheet-wrap{page-break-inside:avoid;margin:0}
+  .sheet-wrap + .sheet-wrap{page-break-before:always}
+}
+/* финальный отчёт печатается на A3 альбомном (Олег, 09.11): лист 400 x 277 мм */
+body:not(.fluid) .sheet.f-1,body:not(.fluid) .sheet.f-2{width:400mm;height:277mm}
+@media print{
+  .sheet.f-1,.sheet.f-2{width:400mm!important;height:277mm!important}
+}
+/* ---------- лист 3: сравнение с коллегами (Олег, 09.11) ---------- */
+.f3-body{display:grid;grid-template-columns:150px 1fr;gap:6px;flex:1;min-height:0}
+.f3-side{display:flex;flex-direction:column;gap:6px;min-height:0}
+.f3-f{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.f3-l{font-size:10.5px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.f3-side select,.f3-dd summary{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:10.5px;padding:3px 6px;border:1px solid #D5DAE1;border-radius:4px;background:#fff;color:var(--ink)}
+.f3-dd{position:relative}
+.f3-dd summary{list-style:none;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f3-dd summary::-webkit-details-marker{display:none}
+.f3-dd summary:after{content:"▾";float:right;color:var(--mut)}
+.f3-ddl{position:absolute;z-index:5;left:0;min-width:100%;background:#fff;border:1px solid #D5DAE1;border-radius:4px;padding:4px 6px;box-shadow:0 4px 12px rgba(0,0,0,.12);max-height:220px;overflow:auto}
+.f3-ddl label{display:block;font-size:10.5px;padding:2px 0;white-space:nowrap;cursor:pointer}
+.f3-mode{display:flex;flex-direction:column;gap:3px}
+.f3-mode button{font:inherit;font-size:10.5px;padding:4px 6px;border:1px solid #D5DAE1;background:#fff;border-radius:4px;cursor:pointer;color:var(--ink);text-align:left}
+.f3-mode button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.f3-charts{display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+.f3-charts .sh-card{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+/* звезда лидера по приросту на листе 3: лёгкая пульсация */
+g.gstar{animation:tcmStar 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes tcmStar{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}   /* заметнее (Олег, 09.11) */
+@media print{g.gstar{animation:none}}
+@media (prefers-reduced-motion:reduce){g.gstar{animation:none}}
+.fluid .sheet-wrap:nth-of-type(3) .sheet{height:var(--sheetH2,auto)}
+.fluid.autoheight .sheet-wrap:nth-of-type(3) .sheet{height:auto}
+body:not(.fluid) .sheet.f-3{width:400mm;height:277mm}
+@media (max-width:1150px){ .fluid .f3-body{grid-template-columns:1fr} .fluid .f3-charts .sh-card{min-height:220px} }
+@media print{ .sheet.f-3{width:400mm!important;height:277mm!important} .f3-ddl{display:none!important} .f3-dd[open] summary{border-color:#D5DAE1} }
