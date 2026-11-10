@@ -86,9 +86,12 @@ function cmpVal(x, y, key){
   var to = rs.reduce(function(a, r){ return a + r.to; }, 0);
   if (key === 'to') return to;
   if (key === 'm2') return to / x.area / rs.length;                     /* в среднем за месяц */
-  if (key === 'chk'){
-    var n = rs.reduce(function(a, r){ return a + r.to / r.chk; }, 0);   /* число чеков */
-    return n ? to / n : null;
+  if (key === 'chk'){                               /* TCM: месяцы без числа чеков не участвуют, иначе чек = 0 */
+    var rc = rs.filter(function(r){ return r.chk > 0; });
+    if (!rc.length) return null;
+    var tc = rc.reduce(function(a, r){ return a + r.to; }, 0);
+    var n = rc.reduce(function(a, r){ return a + r.to / r.chk; }, 0);   /* число чеков */
+    return n ? tc / n : null;
   }
   if (key === 'ex') return rs.reduce(function(a, r){ return a + (r.ex || 0); }, 0);
   return null;

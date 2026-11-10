@@ -94,7 +94,7 @@ def create_app(loader: Callable[[], dict] | None = None, users: dict[str, str] |
     throttle = Throttle()
     comments = CommentStore(state_dir if state_dir is not None else os.environ.get("TCM_STATE_DIR") or None)
     managers = managers if managers is not None else load_managers()
-    reports = reports or TenantReports()
+    reports = reports or TenantReports(extra=cache.get)   # лист 3 отчёта: чеки и менеджеры из нашей модели
 
     @asynccontextmanager
     async def lifespan(_app):

@@ -43,7 +43,10 @@ def test_build_data_and_html():
     assert any("'zara': [38.0, 40.0, 42.0, 44.0, 46.0]" in x for x in d["plan"])
     html = tr.build_html(d)
     assert "O\\'STIN" in html and "CAFE MERIDIAN" not in html  # демо-данных не осталось
-    assert "location.hash.slice(1)" in html and "STATE.grow" in html and 'id="tcm-pdf"' in html
+    assert "location.hash.slice(1)" in html and "STATE.grow" in html
+    # лист 3: демо-генератор compare.js заменён нашими данными
+    assert "lcg(5000" not in html and "var CMP_ALL = [" in html and "Демо: помесячный" not in html
+    assert "В бою — из выгрузки" not in html
     assert "(демо-данные)" not in html
 
 
@@ -104,3 +107,25 @@ def test_zero_plan_years_are_no_plan():
     # договор на 3 года: 4–5-й год в «Физибилити» нулями — плана нет, а не «$0» на графике
     assert any("'zara': [38.0, 40.0, 42.0, null, null]" in x for x in d["plan"])
     assert "Math.max(lastI + 1, cur)" in tr.build_html(d)   # лесенка обрезается по последнему году с планом
+
+
+def page_model():
+    """Наша модель страницы (/api/data) в минимальном виде: чеки, превышение, менеджер."""
+    ms = MONTHS
+    return {"asOf": "2026-10-15T12:00+05:00", "months": ms, "brands": [
+        {"name": "ZARA", "mgr": "Diyor", "to": [100000.0] * len(ms), "ch": [2000] * len(ms), "ex": [5000.0] * len(ms)},
+        {"name": "O'STIN", "mgr": "Buba", "to": [30000.0] * len(ms), "ch": [None] * len(ms), "ex": [0] * len(ms)}]}
+
+
+def test_sheet3_data():
+    d = tr.build_data(model(), SHEETS, page_model())
+    assert d["cmp_mgrs"] == ["Buba", "Diyor"]
+    zara = next(x for x in d["cmp"] if x.startswith("{id:'zara'"))
+    assert "mgr:'Diyor'" in zara and "[2026,9,140000,50.0,5000]" in zara   # чек = 100000 / 2000
+    ostin = next(x for x in d["cmp"] if "O\\'STIN" in x)
+    assert ",null,0]" in ostin                                              # чеков нет — чек null, не 0
+    html = tr.build_html(d)
+    assert 'var CMP_MGRS = ["Buba", "Diyor"];' in html and "var CMP_LAST = { y:2026, m:9 };" in html
+    # без нашей модели лист 3 всё равно собирается (чеки пустые)
+    d2 = tr.build_data(model(), SHEETS)
+    assert d2["cmp_mgrs"] == [] and all(",null,null]" in x for x in d2["cmp"])

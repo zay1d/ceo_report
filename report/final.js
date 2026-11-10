@@ -360,7 +360,7 @@ function finalCtx(b, M){
     if (X.T.monthsToDecision <= 6)
       cand.push({ zone:'term', w:45,
         t:'Сроки: решение о продлении нужно принять до ' + X.T.deadlineTxt + ', поэтому переговоры лучше начать уже сейчас.' });
-    if (X.plan && X.curYear < PLAN_TERM && !rateLow && !ocrAlarm)
+    if (X.plan && X.curYear < PLAN_TERM && X.planYears[X.curYear] && !rateLow && !ocrAlarm)   /* TCM: план бывает короче 5 лет */
       cand.push({ zone:'plan', w:30,
         t:'План: со следующего года модель ТРЦ рассчитывает на ставку $' + Math.round(X.planYears[X.curYear].plan) + ' за м².' });
     cand.push({ zone:'watch', w:10, t:'Контроль: проверить показатели ещё раз через три месяца по новой выгрузке.' });

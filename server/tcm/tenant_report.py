@@ -1,11 +1,15 @@
 """PDF «Отчёт по арендатору» (шаблон Hyper Partners, папка report/) для кнопки «Выгрузить анализ».
 
-Данные — модель дашборда TCM (`model.json` и `raw_dump.json`, их раз в час обновляет
+Данные листов 1–2 — модель дашборда TCM (`model.json` и `raw_dump.json`, их раз в час обновляет
 tcm-dashboard на той же ВМ). Перевод модели в формат отчёта — перенос gen_tenant_report.py
 из проекта health check: контракты из report/README-INTEGRATION.md, логику самого отчёта
-(final.js, charts.js) не трогаем.
+(final.js, charts.js, compare.js) не трогаем.
 
-PDF печатает Chrome без окна (--print-to-pdf): два листа A4, альбомная, как при печати отчёта.
+Лист 3 «Сравнение с коллегами» (пакет 09.11): помесячный оборот — та же модель дашборда; средний
+чек, менеджер и превышение оборота над порогом % аренды — наша модель страницы («Реестр 26»:
+Тurnover, РЕЕСТР, карточки брендов), которую сервер и так держит в памяти (`extra`).
+
+PDF печатает Chrome без окна (--print-to-pdf): три листа A3, альбомная, как при печати отчёта.
 
 Переменные окружения:
   TCM_TR_DATA   папка с model.json и raw_dump.json (на ВМ: /opt/tcm-dashboard/app/data)
@@ -104,8 +108,9 @@ class Sheet:
         return None
 
 
-def build_data(M: dict, sheets: dict) -> dict:
-    """model.json + листы РЕЕСТР/Физибилити → строки JS для отчёта и соответствие бренд → id."""
+def build_data(M: dict, sheets: dict, extra: dict | None = None) -> dict:
+    """model.json + листы РЕЕСТР/Физибилити (+ наша модель страницы для листа 3)
+    → строки JS для отчёта и соответствие бренд → id."""
     months = M["months"]
     reg = Sheet(sheets.get("РЕЕСТР", {}).get("values"))
     RH = 1
@@ -173,8 +178,9 @@ def build_data(M: dict, sheets: dict) -> dict:
     today = date.fromisoformat(last + "-01")
     plan_year = min((int(v["open"][-4:]) for v in reestr.values()
                      if re.match(r"^\d{2}\.\d{2}\.\d{4}$", v.get("open") or "")), default=2024)
-    brands, deals, mall, taxonomy, plan_rows, fact_rows = [], [], [], [], [], []
+    brands, deals, mall, taxonomy, plan_rows, fact_rows, cmp = [], [], [], [], [], [], []
     ids: dict[str, str] = {}
+    ours = page_brands(extra)
 
     for b in pool:
         key = b["brand"].upper()
@@ -252,14 +258,50 @@ def build_data(M: dict, sheets: dict) -> dict:
         mall.append(obj(rec)[:-1] + ", season:" + (jlist(se) if se else "null") + "}")
         taxonomy.append(json.dumps(f"{seg}|{cat}|{sub}|{sub2}", ensure_ascii=False))
 
+        # лист 3: помесячно оборот (модель дашборда) + средний чек и превышение порога (наша модель)
+        o = ours.get(norm(b["brand"])) or ours.get(re.sub(r"\s+(NEW|OLD)$", "", norm(b["brand"])))
+        crow = []
+        for m in months:
+            if m > last:
+                break
+            v = to(b, m)
+            if not v:
+                continue                                   # месяц не подан — строку не передаём
+            chk = exv = None
+            if o and m in o["idx"]:
+                i = o["idx"][m]
+                oto, och, oex = o["to"][i], o["ch"][i], o["ex"][i]
+                chk = round(oto / och, 1) if oto and och else None
+                exv = round(oex) if oex else 0
+            crow.append(f"[{m[:4]},{int(m[5:7])},{round(v)},{js(chk)},{js(exv)}]")
+        cmp.append(obj({"id": rid, "brand": b["brand"], "cat": code, "catName": cat, "seg": seg, "sub": sub,
+                        "sub2": sub2, "area": a, "mgr": (o or {}).get("mgr") or ""})[:-1] +
+                   ", rows:[" + ",".join(crow) + "]}")
+
         f = feas.get(key)
         if f and any(x is not None for x in f):
             plan_rows.append(f"  '{rid}': " + jlist(f))
         if any(x is not None for x in lad):
             fact_rows.append(f"  '{rid}': " + jlist(lad))
 
+    mgrs = sorted({o["mgr"] for o in ours.values() if o.get("mgr")}, key=str.lower)
     return {"brands": brands, "deals": deals, "mall": mall, "taxonomy": taxonomy, "plan": plan_rows,
-            "fact": fact_rows, "plan_year": plan_year, "last": last, "ids": ids}
+            "fact": fact_rows, "plan_year": plan_year, "last": last, "ids": ids,
+            "cmp": cmp, "cmp_mgrs": mgrs}
+
+
+def page_brands(extra: dict | None) -> dict:
+    """Наша модель страницы (/api/data) → {бренд: месяцы, обороты, чеки, превышение, менеджер}."""
+    if not extra or not extra.get("brands"):
+        return {}
+    idx = {m: i for i, m in enumerate(extra.get("months") or [])}
+    out = {}
+    for x in extra["brands"]:
+        n = len(idx)
+        out.setdefault(norm(x.get("name")), {
+            "idx": idx, "mgr": x.get("mgr") or "",
+            "to": (x.get("to") or [None] * n), "ch": (x.get("ch") or [None] * n), "ex": (x.get("ex") or [None] * n)})
+    return out
 
 
 def trim_opening(rows: list) -> list:
@@ -326,6 +368,36 @@ function factLadder(d, curY){
 }
 """
 
+CMP_INJECT = """/* ---- Лист 3: данные Tashkent City Mall (сервер TCM Analytics, tenant_report.py) ----
+   Вместо демо-генератора compare.js (README, п.3.5). rows: [год, месяц, оборот $, средний чек $, превышение $];
+   оборот — модель дашборда TCM, чек/менеджер/превышение порога %% аренды — Google-таблица «Реестр 26». */
+var CMP_MGRS = %s;
+var CMP_LAST = { y:%d, m:%d };
+var CMP_FIRST_Y = CMP_LAST.y - 2;                     /* три календарных года истории у пула */
+var CMP_ALL = [
+%s
+];
+CMP_ALL.forEach(function(x){
+  x.me = false;
+  x.rows = x.rows.map(function(r){ return { y:r[0], m:r[1], to:r[2], chk:r[3], ex:r[4] }; });
+});
+var CMP_POOL = CMP_ALL;
+/* наш арендатор в том же виде: оборот — ряд отчёта (BRANDS.rows), чек и превышение — из выгрузки.
+   Пул без самого арендатора: cmpPeers() добавляет его отдельно (медным), иначе он был бы дважды */
+function cmpMe(b){
+  CMP_POOL = CMP_ALL.filter(function(x){ return x.id !== b.id; });
+  var x = CMP_ALL.filter(function(q){ return q.id === b.id; })[0], at = {};
+  if (x) x.rows.forEach(function(r){ at[r.y * 12 + r.m] = r; });
+  var rows = b.rows.map(function(r){
+    var q = at[r.y * 12 + r.m];
+    return { y:r.y, m:r.m, to:r.to, chk:q ? q.chk : null, ex:r.to == null ? null : (q ? q.ex : 0) };
+  });
+  return { id:b.id, brand:b.brand, cat:b.catCode, catName:b.cat, seg:b.seg, sub:b.sub, sub2:b.sub2,
+           area:b.area, mgr:x ? x.mgr : '', rows:rows, me:true };
+}
+
+"""
+
 DATA_TAIL = """function medianOf(list, key){
   var v = list.map(function(x){ return x[key]; }).filter(function(x){ return x != null; }).sort(function(a, b){ return a - b; });
   if (!v.length) return null;
@@ -339,15 +411,6 @@ function mallMedian(cat, key){
   return v.length % 2 ? v[h] : (v[h - 1] + v[h]) / 2;
 }
 """
-
-
-PRINT_ZOOM = 0.85
-PRINT_CSS = """<style id="tcm-pdf">
-:root{--tcmz:%s}
-.sheet{width:calc(267mm / var(--tcmz))!important;height:calc(184mm / var(--tcmz))!important}
-@media print{.sheet-wrap{zoom:var(--tcmz)}}
-</style>
-""" % PRINT_ZOOM
 
 
 def build_html(data: dict, pkg: Path = PKG) -> str:
@@ -371,16 +434,25 @@ def build_html(data: dict, pkg: Path = PKG) -> str:
         raise ReportError(f"шаблон отчёта изменился: ожидалось 5 блоков script, найдено {len(blocks)}")
     m = blocks[1]
     s = s[:m.start(1)] + block1 + s[m.end(1):]
-    # Арендатор — из адреса (#id), лист — A4 (а не «во всю ширину»). Демо-арендатора в данных нет.
+    # Арендатор — из адреса (#id), лист «как на печати» A3 (а не «во всю ширину»). Демо-арендатора в данных нет.
     s = s.replace("STATE = { brand:'meridian', fs:1, wide:true }",
                   "STATE = { brand:(BRANDS.some(function(b){ return '#' + b.id === location.hash; }) ? "
                   "location.hash.slice(1) : BRANDS[0].id), fs:1, wide:false, grow:true }", 1)
     s = s.replace("(демо-данные)", "(Google-таблица «Реестр 26»)")
-    # графики растягиваются под свободное место листа и в режиме A4 (в шаблоне — только «во всю ширину»)
+    # лист 3: демо-генератор compare.js (CMP_MGRS … cmpMe) → наши данные
+    a, z = s.find("var CMP_MGRS = "), s.find("/* ---------- состояние фильтров")
+    if a < 0 or z < a:
+        raise ReportError("шаблон отчёта изменился: не найден блок демо-данных листа 3 (compare.js)")
+    ly, lm = int(data["last"][:4]), int(data["last"][5:7])
+    s = s[:a] + CMP_INJECT % (json.dumps(data.get("cmp_mgrs") or [], ensure_ascii=False), ly, lm,
+                              ",\n".join("  " + r for r in data.get("cmp") or [])) + s[z:]
+    # подвал листа 3 в шаблоне — две JS-строки подряд
+    s = s.replace("Демо: помесячный оборот коллег, чеки, менеджеры и пороги договоров сгенерированы. ",
+                  "Обороты — модель дашборда TCM; средний чек, менеджеры и превышение над порогом договора — "
+                  "Google-таблица «Реестр 26». ", 1)
+    s = s.replace("'В бою — из выгрузки оборотов и договоров. Сформировано '", "'Сформировано '", 1)
+    # графики растягиваются под свободное место листа и в режиме «как на печати» (в шаблоне — только «во всю ширину»)
     s = s.replace("} else if (STATE.wide){", "} else if (STATE.wide || STATE.grow){", 1)
-    # На A4 шаблону тесно с реальными суммами: таблица «Итоги по годам» вылезает за карточку, графикам
-    # не хватает высоты. Верстаем лист крупнее и при печати уменьшаем целиком (zoom) — раскладка та же.
-    s = s.replace("</head>", PRINT_CSS + "</head>", 1)
     if "location.hash.slice(1)" not in s or "STATE.grow" not in s:
         raise ReportError("шаблон отчёта изменился: не найден выбор арендатора по умолчанию")
     return s
@@ -409,8 +481,8 @@ def print_pdf(html: str, rid: str, chrome: str, timeout: int = 90) -> bytes:
                "--hide-scrollbars", "--mute-audio", f"--user-data-dir={d}/profile",
                # отчёт внешних запросов не делает; страхуемся — сеть закрыта
                "--host-resolver-rules=MAP * ~NOTFOUND", "--no-pdf-header-footer",
-               # окно больше листа (267×184 мм ≈ 1009×695 px): отчёт рисует графики 1:1, без уменьшения под экран
-               "--window-size=1400,1100", "--virtual-time-budget=4000", "--run-all-compositor-stages-before-draw",
+               # окно больше листа A3 (400×277 мм ≈ 1512×1047 px): отчёт рисует графики 1:1, без уменьшения
+               "--window-size=1800,1400", "--virtual-time-budget=4000", "--run-all-compositor-stages-before-draw",
                f"--print-to-pdf={out}", page.as_uri() + "#" + rid]
         env = {**os.environ, "HOME": d, "XDG_CONFIG_HOME": d, "XDG_CACHE_HOME": d}
         try:
@@ -426,8 +498,10 @@ def print_pdf(html: str, rid: str, chrome: str, timeout: int = 90) -> bytes:
 class TenantReports:
     """Собирает HTML отчёта при обновлении model.json и печатает PDF по бренду (с кэшем)."""
 
-    def __init__(self, data_dir: str | None = None, chrome: str | None = None):
+    def __init__(self, data_dir: str | None = None, chrome: str | None = None, extra=None):
+        """extra — функция без аргументов, отдающая нашу модель страницы (DataCache.get) для листа 3."""
         self.dir = Path(data_dir or os.environ.get("TCM_TR_DATA") or "")
+        self.extra = extra
         self.chrome = chrome or find_chrome()
         self.lock = threading.Lock()          # одна печать за раз: на ВМ два ядра
         self.version = None
@@ -447,11 +521,18 @@ class TenantReports:
             ver = (st.st_mtime_ns, (self.dir / "raw_dump.json").stat().st_mtime_ns)
         except FileNotFoundError:
             raise ReportError("нет данных дашборда (model.json)") from None
+        extra = None
+        if self.extra:
+            try:
+                extra = self.extra()
+            except Exception:                      # без чеков лист 3 всё равно соберётся
+                log.exception("лист 3: нет модели страницы")
+        ver += ((extra or {}).get("asOf"),)
         if ver == self.version:
             return
         M = json.loads(model.read_text(encoding="utf-8"))
         raw = json.loads((self.dir / "raw_dump.json").read_text(encoding="utf-8"))["sheets"]
-        data = build_data(M, {k: raw[k] for k in ("РЕЕСТР", "Физибилити") if k in raw})
+        data = build_data(M, {k: raw[k] for k in ("РЕЕСТР", "Физибилити") if k in raw}, extra)
         del raw
         self.html, self.ids, self.last = build_html(data), data["ids"], data["last"]
         self.version, self.pdfs = ver, OrderedDict()

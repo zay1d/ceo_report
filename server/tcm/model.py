@@ -396,16 +396,23 @@ def build(tabs: dict[str, list], brand_tabs: dict[str, list], today: str, as_of:
             unmatched_to.append(b.name)
         if charges is None:
             unmatched_tab.append(b.name)
-        to, ch, cost = [], [], []
+        to, ch, cost, ex = [], [], [], []
         for mk, rate in zip(months, fx_by):
             t, c = to_raw.get(tk, {}).get(mk, (None, None)) if tk else (None, None)
             to.append(round(t / rate, 2) if t and t > 0 else None)
             ch.append(round(c) if c and c > 0 and t and t > 0 else None)
             if charges is None:
                 cost.append(None)
+                ex.append(None)
             else:
                 x = charges.get(mk)
                 cost.append(round((x["rent"] + x["over"] + x["opex"]) / rate, 2) if x else 0)
+                # Превышение оборота над порогом % аренды, $: «Превышение ТО» в карточке = % × (ТО − порог),
+                # поэтому ТО сверх порога = превышение ÷ % года договора, к которому относится месяц
+                pm = contract_year_value(b.pcts, b.open, mk + "-15")
+                over = x["over"] if x else 0
+                ex.append(round(over / rate / pm, 2) if over > 0 and pm and 0 < pm < 1 and t and t > 0
+                          else (0 if t and t > 0 else None))
         rate = contract_year_value(b.rates, b.open, today)
         pct = contract_year_value(b.pcts, b.open, today)
         if rate and rate > 1000:  # ставка в сумах (такое есть в реестре) → $
@@ -416,7 +423,7 @@ def build(tabs: dict[str, list], brand_tabs: dict[str, list], today: str, as_of:
             "area": round(b.area, 2), "open": b.open, "end": b.end,
             "rate": round(rate, 2) if rate else None,
             "toPct": round(pct, 4) if pct and 0 < pct < 1 else None,
-            "to": to, "ch": ch, "cost": cost,
+            "to": to, "ch": ch, "cost": cost, "ex": ex,
         })
 
     return {
